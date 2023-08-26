@@ -1,0 +1,26 @@
+version: 1
+formatters:
+  default:
+    format: "(pid=%(process)d) [%(asctime)s | %(levelname)s | %(filename)s]\n%(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: default
+    level: INFO
+    filters: []
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: default
+    level: DEBUG
+    filename: logconfig.log
+    maxBytes: 1024000
+    backupCount: 10
+loggers:
+  logger:
+    level: INFO
+    handlers: [console, file]
+  root:
+    level: DEBUG
+    handlers: [console, file]
