@@ -1,2 +1,10 @@
-torchvision==0.14.1
-python-dotenv==0.21.1
+matplotlib
+numpy
+pandas
+scikit-learn
+tensorboardx
+torchvision
+torch
+requests
+python-dotenv
+ray[default]
