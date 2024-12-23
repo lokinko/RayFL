@@ -5,5 +5,5 @@
 *.log
 *.csv
 *.dat
-
+*.ipynb
 */movielens-100k/*
