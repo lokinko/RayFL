@@ -10,7 +10,6 @@ class ServerFactory(ABC):
     def __init__(self, args):
         self.args = args
         self.method = args['method']
-        # initLogging(args['log_dir'] / f"server_{args['timestamp']}.log")
 
     def create_server(self) -> BaseServer:
         if self.method == 'fedrap':

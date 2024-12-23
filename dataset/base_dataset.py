@@ -7,15 +7,14 @@ class BaseDataset(ABC):
         self.dataset = args['dataset']
 
     @abstractmethod
-    def load_dataset_dict(self):
+    def load_user_dataset(self):
         '''
         Abstract method to load dataset, should be implemented in subclass
         dataset should be returned with the following format:
         {
             '1': {
                 'user_id': 'real_client_id',
-                'train': DataLoader,
-                'test': DataLoader
+                'user_data': user's local dataset
             }, ...
         }
         '''
