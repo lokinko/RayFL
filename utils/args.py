@@ -6,6 +6,8 @@ from pathlib import Path
 METHOD = ['fedavg', 'fedrap']
 DATASET = ['MNIST', 'MovieLens-1m']
 
+work_dir = Path(__file__).resolve().parents[1]
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-seed', type=int, default=0)
@@ -24,8 +26,19 @@ def get_args():
     args, unknown_args = parser.parse_known_args()
 
     args = vars(args)
+
+    # set the running timestamp
     args['timestamp'] = time.strftime('%m%d%H%M%S', time.localtime(time.time()))
-    args['log_dir'] = Path(f"logs/{args['method'].lower()}_{args['model'].lower()}_{args['dataset'].lower()}_{args['timestamp']}")
+
+    # set the working directory
+    args['work_dir'] = work_dir
+
+    # set the log directory
+    args['log_dir'] = Path(
+        f"{args['work_dir']}/logs/" + \
+        f"{args['method'].lower()}_{args['model'].lower()}_{args['dataset'].lower()}_{args['timestamp']}")
+
     if not args['log_dir'].exists():
         args['log_dir'].mkdir(parents=True, exist_ok=True)
+
     return args, unknown_args
