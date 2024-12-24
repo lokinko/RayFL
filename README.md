@@ -1,6 +1,6 @@
 # FedRay
 
-![Static Badge](https://img.shields.io/badge/FedRay-Let's_start_federated_learning_with_Ray!-blue) ![GitHub](https://img.shields.io/github/license/lokinko/FedRay)
+![Static Badge](https://img.shields.io/badge/RayFL-Let's_start_federated_learning_with_Ray!-blue) ![GitHub](https://img.shields.io/github/license/lokinko/RayFL)
 
 This is an experimential framework to combine distributed system ```Ray``` with ```Federated Learning```.
 
