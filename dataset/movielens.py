@@ -28,7 +28,7 @@ class MovieLens(BaseDataset):
         item_id = ratings[['item']].drop_duplicates()
         item_id['itemId'] = np.arange(len(item_id))
         ratings = pd.merge(ratings, item_id, on=['item'], how='left')
-        ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
+        ratings = ratings[['userId', 'user', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
 
         user_ratings = {
             user_id: {

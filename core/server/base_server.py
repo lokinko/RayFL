@@ -14,7 +14,7 @@ class BaseServer(ABC):
         Must set self.clients with the map of client_id -> client_index'''
 
     @abstractmethod
-    def split_data(self, data):
+    def split_data(self, data, **kwargs):
         '''
         Split data into train_data and test_data, should be implemented in subclass.
         '''
