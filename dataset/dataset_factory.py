@@ -1,4 +1,4 @@
-from dataset.movielens import MovieLens
+from dataset import MovieLens
 
 class DatasetFactory:
     def __init__(self, args) -> None:

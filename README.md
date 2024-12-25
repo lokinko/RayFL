@@ -1,4 +1,4 @@
-# FedRay
+# RayFL
 
 ![Static Badge](https://img.shields.io/badge/RayFL-Let's_start_federated_learning_with_Ray!-blue) ![GitHub](https://img.shields.io/github/license/lokinko/RayFL)
 

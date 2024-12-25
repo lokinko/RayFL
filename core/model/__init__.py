@@ -1,1 +1,1 @@
-from core.model.recommendation import *
+from core.model.model import *
