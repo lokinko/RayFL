@@ -1,10 +1,7 @@
-import logging
 from abc import ABC, abstractmethod
 
 from core.server.base_server import BaseServer
 from core.server.fedrap_server import FedRapServer
-
-from utils.logs import initLogging
 
 class ServerFactory(ABC):
     def __init__(self, args):
@@ -16,6 +13,7 @@ class ServerFactory(ABC):
             server = FedRapServer(self.args)
         else:
             raise NotImplementedError(f"Method {self.method} not implemented")
+        assert server.model is not None, f"{self.method} should initialize the model in subclass"
         return server
 
     def create_model(self):

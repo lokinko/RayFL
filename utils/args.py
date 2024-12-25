@@ -16,6 +16,7 @@ def get_args():
     parser.add_argument('-data', "--dataset", choices=DATASET, type=str, default="movielens-1m")
     parser.add_argument('-num_rounds', type=int, default=100)
     parser.add_argument('-num_clients', type=int, default=100)
+    parser.add_argument('--clients_sample_ratio', type=float, default=0.1)
 
     parser.add_argument('-lr', type=float, default=0.01)
 
