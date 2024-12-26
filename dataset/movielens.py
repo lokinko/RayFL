@@ -20,16 +20,22 @@ class MovieLens(BaseDataset):
         else:
             raise NotImplementedError(f"Movielens dataset has no {self.dataset} implemented")
 
+        # origin data with all [uid, mid, rating, timestamp] samples.
         self.origin_data = pd.read_csv(
             data, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+
+        # filter the user with num_samples < min_items
         ratings = self.datasetFilter(self.origin_data, min_items=min_items)
         ratings = self.reindex(ratings)
 
+        # binarize the ratings, positive click = 1
         preprocess_ratings = self._binarize(ratings)
+
+        # statistic user and item interact
         self.user_pool = set(ratings['userId'].unique())
         self.item_pool = set(ratings['itemId'].unique())
 
-        negatives = self._negative_sample(ratings, self.args['negatives_candidates'])
+        negatives = self._get_negative_samples(ratings, self.args['negatives_candidates'])
 
         train_ratings, val_ratings, test_ratings = self._split_loo(preprocess_ratings)
         return train_ratings, val_ratings, test_ratings, negatives
@@ -63,13 +69,11 @@ class MovieLens(BaseDataset):
         data.loc[data['rating'] > 0, 'rating'] = 1.0
         return data
 
-    def _negative_sample(self, ratings, negatives_candidates: int):
-        item_pool = set(ratings['itemId'].unique())
-
-        interact_status = ratings['itemId'].apply(set).reset_index().rename(
+    def _get_negative_samples(self, ratings, negatives_candidates: int):
+        interact_status = ratings.groupby('userId')['itemId'].apply(set).reset_index().rename(
             columns={'itemId': 'interacted_items'})
 
-        interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: item_pool - x)
+        interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: self.item_pool - x)
         interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(x, negatives_candidates))
         return interact_status[['negative_items', 'negative_samples']]
 
