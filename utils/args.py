@@ -3,6 +3,8 @@ import argparse
 
 from pathlib import Path
 
+import torch
+
 METHOD = ['fedavg', 'fedrap']
 DATASET = ['mnist', 'movieLens-1m', 'movielens-100k']
 
@@ -11,18 +13,14 @@ work_dir = Path(__file__).resolve().parents[1]
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-seed', type=int, default=0)
-    parser.add_argument('--model', type=str, default='CNN')
     parser.add_argument('-method', type=str, choices=METHOD, default="fedrap")
     parser.add_argument('-data', "--dataset", choices=DATASET, type=str, default="movielens-1m")
     parser.add_argument('-num_rounds', type=int, default=100)
-    parser.add_argument('-num_clients', type=int, default=100)
-    parser.add_argument('--clients_sample_ratio', type=float, default=0.1)
-
     parser.add_argument('-lr', type=float, default=0.01)
-
-    # For recommendation system
-    parser.add_argument('-num_items', type=int, default=16)
-    parser.add_argument('-item_hidden_dim', type=int, default=32)
+    parser.add_argument('-cr', '--clients_sample_ratio', type=float, default=1.0)
+    parser.add_argument('-bs', '--batch_size', type=int, default=1024)
+    parser.add_argument('--local_epoch', type=int, default=3)
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -36,8 +34,7 @@ def get_args():
 
     # set the log directory
     args['log_dir'] = Path(
-        f"{args['work_dir']}/logs/" + \
-        f"{args['method'].lower()}_{args['model'].lower()}_{args['dataset'].lower()}_{args['timestamp']}")
+        f"{args['work_dir']}/logs/{args['method'].lower()}_{args['dataset'].lower()}_{args['timestamp']}")
 
     if not args['log_dir'].exists():
         args['log_dir'].mkdir(parents=True, exist_ok=True)
