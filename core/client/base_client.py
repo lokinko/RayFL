@@ -1,12 +1,11 @@
 from abc import ABC, abstractmethod
 
 class BaseClient(ABC):
-    def __init__(self, args, model) -> None:
+    def __init__(self, args) -> None:
         self.args = args
-        self.model = model
 
     @abstractmethod
-    def train(self, train_data, **kwargs):
+    def train(self, train_data, model, **kwargs):
         pass
 
     @abstractmethod

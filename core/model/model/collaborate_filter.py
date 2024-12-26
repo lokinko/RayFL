@@ -4,6 +4,7 @@ import torch
 class CollaborativeFilterModel(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
+        assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
         self.args = args
         self.num_items = args['num_items']
         self.item_hidden_dim = args['item_hidden_dim']

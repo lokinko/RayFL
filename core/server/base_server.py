@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from collections import defaultdict
 
 class BaseServer(ABC):
     def __init__(self, args) -> None:

@@ -1,4 +1,4 @@
-from dataset import MovieLens
+from dataset.movielens import MovieLens
 
 class DatasetFactory:
     def __init__(self, args) -> None:
@@ -7,7 +7,7 @@ class DatasetFactory:
 
     def load_dataset(self):
         if self.dataset in ['movielens-1m', 'movielens-100k']:
-            dataset = MovieLens(self.args).load_user_dataset()
+            dataset = MovieLens(self.args).load_user_dataset(min_items=self.args['min_items'])
         else:
             raise NotImplementedError(f"Dataset {self.dataset} not implemented")
         return dataset

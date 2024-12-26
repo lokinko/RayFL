@@ -1,7 +1,7 @@
 
 import logging
 
-from core.server import ServerFactory
+from core.server.server_factory import ServerFactory
 
 from utils.args import get_args
 from utils.logs import initLogging
@@ -15,6 +15,7 @@ if __name__ == "__main__":
     server_factory = ServerFactory(args)
     server = server_factory.create_server()
     logging.info(f"Server Factory creates {args['method']} server successfully.")
+
     # for i in range(args['num_rounds']):
     #     server.select_clients()
     #     server.set_clients_data()
