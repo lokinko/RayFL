@@ -3,7 +3,7 @@ import math
 import pandas as pd
 
 
-class MetronAtK:
+class GlobalMetrics:
     def __init__(self, top_k):
         self._top_k = top_k
         self._subjects = None

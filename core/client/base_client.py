@@ -1,19 +1,13 @@
 from abc import ABC, abstractmethod
 
+from utils.logs import initLogging
+
 class BaseClient(ABC):
     def __init__(self, args) -> None:
         self.args = args
+        self._name = "base_client"
+        initLogging(args['log_dir'] / f"{self._name}_{args['timestamp']}.log")
 
     @abstractmethod
-    def train(self, train_data, model, **kwargs):
-        pass
-
-    @abstractmethod
-    def test(self, test_data, **kwargs):
-        pass
-
-    def save_model(self):
-        pass
-
-    def load_model(self):
+    def train(self, model, user_data, **kwargs):
         pass

@@ -12,17 +12,10 @@ class MovieLens(BaseDataset):
         self.user_pool = None
         self.item_pool = None
 
-    def load_user_dataset(self, min_items):
-        if self.dataset == 'movielens-1m':
-            data = self.args['work_dir'] / 'data/movielens-1m/ratings.dat'
-        elif self.dataset == 'movielens-100k':
-            data = self.args['work_dir'] / 'data/movielens-1m/ratings.dat'
-        else:
-            raise NotImplementedError(f"Movielens dataset has no {self.dataset} implemented")
-
+    def load_user_dataset(self, min_items, data_file):
         # origin data with all [uid, mid, rating, timestamp] samples.
         self.origin_data = pd.read_csv(
-            data, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+            data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
 
         # filter the user with num_samples < min_items
         ratings = self.datasetFilter(self.origin_data, min_items=min_items)
@@ -35,10 +28,10 @@ class MovieLens(BaseDataset):
         self.user_pool = set(ratings['userId'].unique())
         self.item_pool = set(ratings['itemId'].unique())
 
-        negatives = self._get_negative_samples(ratings, self.args['negatives_candidates'])
+        negatives_candidates = self._samples_negative(ratings, self.args['negatives_candidates'])
 
         train_ratings, val_ratings, test_ratings = self._split_loo(preprocess_ratings)
-        return train_ratings, val_ratings, test_ratings, negatives
+        return train_ratings, val_ratings, test_ratings, negatives_candidates
 
     def datasetFilter(self, ratings, min_items=5):
         # filter unuseful data
@@ -69,13 +62,13 @@ class MovieLens(BaseDataset):
         data.loc[data['rating'] > 0, 'rating'] = 1.0
         return data
 
-    def _get_negative_samples(self, ratings, negatives_candidates: int):
+    def _samples_negative(self, ratings, negatives_candidates: int):
         interact_status = ratings.groupby('userId')['itemId'].apply(set).reset_index().rename(
             columns={'itemId': 'interacted_items'})
 
         interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: self.item_pool - x)
         interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(x, negatives_candidates))
-        return interact_status[['negative_items', 'negative_samples']]
+        return interact_status[['userId', 'negative_items', 'negative_samples']]
 
     def _split_loo(self, ratings):
         ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
