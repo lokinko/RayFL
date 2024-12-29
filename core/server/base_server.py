@@ -13,7 +13,7 @@ class BaseServer(ABC):
         self.val_data = None
         self.test_data = None
         self.model = None
-        self.users = None
+        self.users = {}
         self.pool = None
         self.metrics = None
 

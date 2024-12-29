@@ -20,10 +20,12 @@ class PersonalizedCollaboFilterModel(torch.nn.Module):
         self.item_commonality.freeze = True
 
     def forward(self, item_indices):
+        if not isinstance(item_indices, torch.Tensor):
+            item_indices = torch.tensor(item_indices, dtype=torch.long)
         item_personality = self.item_personality(item_indices)
         item_commonality = self.item_commonality(item_indices)
 
-        logits = self.affine_output(item_personality + item_commonality)
+        logits = self.user_embedding(item_personality + item_commonality)
         rating = self.logistic(logits)
 
         return rating, item_personality, item_commonality
