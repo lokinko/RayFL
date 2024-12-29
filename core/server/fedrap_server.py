@@ -1,6 +1,6 @@
-import math
 import copy
 import random
+import logging
 
 import ray
 import torch
@@ -10,7 +10,7 @@ import pandas as pd
 from core.server.base_server import BaseServer
 from core.client.fedrap_client import FedRapActor
 from core.model.model.build_model import build_model
-from dataset import *
+from dataset import MovieLens
 from utils.metrics.metronatk import GlobalMetrics
 from utils.init import init_all
 
@@ -26,9 +26,13 @@ special_args = {
 
     'top_k': 10,
     'regular': 'l1',
-    'l2_network': 0.01,
-    'l2_args': 0.01,
-    'l2_regularization': 0.01,
+    'lr_network': 1e-4,
+    'lr_args': 1e3,
+    'l2_regularization': 1e-6,
+    'lambda': 0.1,
+    'mu': 1e-3,
+    'vary_param': 'fixed',
+    'decay_rate': 0.99,
 }
 
 class FedRapServer(BaseServer):
@@ -42,9 +46,11 @@ class FedRapServer(BaseServer):
         self.model = build_model(self.args)
 
         for user in self.train_data:
-            self.user[user] = {'model_dict': copy.deepcopy(self.model.state_dict())}
+            self.users[user] = {
+                'user_id': user,
+                'model_dict': copy.deepcopy(self.model.state_dict())}
 
-        self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_clients'])])
+        self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
     def allocate_data(self):
@@ -62,11 +68,16 @@ class FedRapServer(BaseServer):
         grouped_train_ratings = train_ratings.groupby('userId')
         train = {}
         for user_id, user_train_ratings in grouped_train_ratings:
-            train_ratings[user_id] = {}
-            train_ratings[user_id]['train'] = self._negative_sample(
+            train[user_id] = {}
+            train[user_id]['train'] = self._negative_sample(
                 user_train_ratings, negatives, self.args['num_negatives'])
-        val = self._negative_sample(val_ratings, negatives, self.args['negatives_candidates'])
-        test = self._negative_sample(test_ratings, negatives, self.args['negatives_candidates'])
+        val_users, val_items, val_ratings = self._negative_sample(
+            val_ratings, negatives, self.args['negatives_candidates'])
+        val = self.group_seperate_items_by_ratings(val_users, val_items, val_ratings)
+
+        test_users, test_items, test_ratings = self._negative_sample(
+            test_ratings, negatives, self.args['negatives_candidates'])
+        test = self.group_seperate_items_by_ratings(test_users, test_items, test_ratings)
         return train, val, test
 
     def _negative_sample(self, pos_ratings: pd.DataFrame, negatives: dict, num_negatives):
@@ -81,7 +92,8 @@ class FedRapServer(BaseServer):
                 users.append(int(row.userId))
                 items.append(int(neg_item))
                 ratings.append(float(0))
-        return users, items, ratings
+        return (users, items, ratings)
+
 
     def select_participants(self):
         participants = np.random.choice(
@@ -89,52 +101,73 @@ class FedRapServer(BaseServer):
         return participants
 
 
+    def group_seperate_items_by_ratings(self, users, items, ratings):
+        user_dict = {}
+        for (user, item, rating) in zip(users, items, ratings):
+            if user not in user_dict:
+                user_dict[user] = {'positive_items': [], 'negative_items': []}
+            if rating == 1:
+                user_dict[user]['positive_items'].append(item)
+            else:
+                user_dict[user]['negative_items'].append(item)
+        return user_dict
+
+
     def aggregate(self, participants):
-        assert self.participants is not None, "No participants selected for aggregation."
+        assert participants is not None, "No participants selected for aggregation."
 
         samples = 0
         global_item_community_weight = torch.zeros_like(self.model.item_commonality.weight)
         for user in participants:
             global_item_community_weight += self.users[user]['model_dict']['item_commonality.weight'] * samples
-            samples += len(self.data[user]['train'][0])
+            samples += len(self.train_data[user]['train'][0])
         global_item_community_weight /= samples
         return {'item_commonality.weight': global_item_community_weight}
 
 
     def train_on_round(self, participants):
-        results = self.ray_pool.map_unordered(
+        results = self.pool.map_unordered(
             lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
-            [self.data[user_id] for user_id in participants])
-        for result in ray.get(results):
+            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
+        for result in results:
             user_id, client_model, client_loss = result
             self.users[user_id]['model_dict'].update(client_model.to('cpu').state_dict())
             self.users[user_id]['loss'] = client_loss
 
 
     @torch.no_grad()
-    def test(self, test_users, test_items, negative_users, negative_items):
+    def test(self, user_ratings: dict):
         test_scores = None
         negative_scores = None
+        test_users, test_items, negative_users, negative_items = None, None, None, None
 
-        for user, user_data in self.data.items():
+        for user, user_data in user_ratings.items():
             # load each user's mlp parameters.
             user_model = copy.deepcopy(self.model)
 
-            user_param_dict = user_data['model_dict']
+            user_param_dict = self.users[user]['model_dict']
             user_param_dict['item_commonality.weight'] = self.model.state_dict()['item_commonality.weight']
             user_model.load_state_dict(user_param_dict)
 
             user_model.eval()
 
-            test_score, _, _ = user_model(user_dict[user]['pos'])
-            negative_score, _, _ = user_model(user_dict[user]['neg'])
+            test_score, _, _ = user_model(user_data['positive_items'])
+            negative_score, _, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score
                 negative_scores = negative_score
+                test_users = torch.tensor([user] * len(test_score))
+                negative_users = torch.tensor([user] * len(negative_score))
+                test_items = torch.tensor(user_data['positive_items'])
+                negative_items = torch.tensor(user_data['negative_items'])
             else:
                 test_scores = torch.cat((test_scores, test_score))
                 negative_scores = torch.cat((negative_scores, negative_score))
+                test_users = torch.cat((test_users, torch.tensor([user] * len(test_score))))
+                negative_users = torch.cat((negative_users, torch.tensor([user] * len(negative_score))))
+                test_items = torch.cat((test_items, torch.tensor(user_data['positive_items'])))
+                negative_items = torch.cat((negative_items, torch.tensor(user_data['negative_items'])))
 
         self.metrics.subjects = [test_users.data.view(-1).tolist(),
                                  test_items.data.view(-1).tolist(),

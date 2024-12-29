@@ -1,5 +1,6 @@
 import os
 import copy
+import logging
 
 import ray
 
@@ -7,6 +8,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
+from utils.init import init_all
 
 class UserItemRatingDataset(Dataset):
     def __init__(self, user_tensor, item_tensor, rating_tensor):
@@ -64,29 +66,32 @@ class UserLoss(torch.nn.Module):
 @ray.remote
 class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
-        self._name = f"fedrap_{os.getpid()}"
         super().__init__(args)
         self.device = torch.device(self.args['device'])
+        init_all(self.args, args['log_dir'] / f"client_{os.getpid()}.log")
 
     def train(self, model, user_data):
         client_model = copy.deepcopy(model)
-        if user_data['model_dict'] is not None:
-            user_model_dict = client_model.state_dict() | user_data['model_dict']
+        user, train_data = user_data[0], user_data[1]['train']
+        logging.info(f"Training user with {len(train_data[0])} samples.")
+
+        if user['model_dict'] is not None:
+            user_model_dict = client_model.state_dict() | user['model_dict']
             client_model.load_state_dict(user_model_dict)
 
         client_model.to(self.args['device'])
         optimizer = torch.optim.SGD([
-            {'params': client_model.affine_output.parameters(), 'lr': self.config['lr_network']},
-            {'params': client_model.item_personality.parameters(), 'lr': self.config['lr_args']},
-            {'params': client_model.item_commonality.parameters(), 'lr': self.config['lr_args']},
-        ], weight_decay=self.config['l2_regularization'])
+            {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+            {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
+            {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
+        ], weight_decay=self.args['l2_regularization'])
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
         dataloader = DataLoader(
             dataset=UserItemRatingDataset(
-                    user_tensor=torch.LongTensor(user_data['train'][0]),
-                    item_tensor=torch.LongTensor(user_data['train'][1]),
-                    rating_tensor=torch.LongTensor(user_data['train'][2])),
+                    user_tensor=torch.LongTensor(train_data[0]),
+                    item_tensor=torch.LongTensor(train_data[1]),
+                    rating_tensor=torch.LongTensor(train_data[2])),
             batch_size=self.args['batch_size'],
             shuffle=True
         )
@@ -109,5 +114,5 @@ class FedRapActor(BaseClient):
                 epoch_loss += loss.item()
                 samples += len(users)
             client_loss.append(epoch_loss / samples)
-        logging.info(f"{self._name} training done, loss: {client_loss[-1]}.")
-        return user_data['user_id'], client_model, client_loss
+        logging.info(f"client_{os.getpid()} training done, loss: {client_loss[-1]}.")
+        return user['user_id'], client_model, client_loss
