@@ -63,7 +63,7 @@ class UserLoss(torch.nn.Module):
         return loss
 
 
-@ray.remote
+@ray.remote(num_gpus=0.2)
 class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
@@ -79,7 +79,7 @@ class FedRapActor(BaseClient):
             user_model_dict = client_model.state_dict() | user['model_dict']
             client_model.load_state_dict(user_model_dict)
 
-        client_model.to(self.args['device'])
+        client_model = client_model.to(self.device)
         optimizer = torch.optim.SGD([
             {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
             {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
@@ -98,7 +98,7 @@ class FedRapActor(BaseClient):
 
         client_model.train()
         client_loss = []
-        for _ in range(self.args['local_epoch']):
+        for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             loss_fn = UserLoss(self.args)
             for users, items, ratings in dataloader:
@@ -114,5 +114,11 @@ class FedRapActor(BaseClient):
                 epoch_loss += loss.item()
                 samples += len(users)
             client_loss.append(epoch_loss / samples)
-        logging.info(f"client_{os.getpid()} training done, loss: {client_loss[-1]}.")
+
+            # check convergence
+            if epoch > 0 and abs(client_loss[epoch] - client_loss[epoch - 1]) / abs(
+                    client_loss[epoch - 1]) < self.args['tol']:
+                break
+
+        logging.info(f"client {user['user_id']} training done, loss: {client_loss[-1]}.")
         return user['user_id'], client_model, client_loss

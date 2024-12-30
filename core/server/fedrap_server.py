@@ -18,7 +18,6 @@ special_args = {
     'model': 'cf',
     'num_users': 6040,
     'num_items': 3706,
-
     'min_items': 10,
     'num_negatives': 4,
     'item_hidden_dim': 32,
@@ -26,13 +25,14 @@ special_args = {
 
     'top_k': 10,
     'regular': 'l1',
-    'lr_network': 1e-4,
+    'lr_network': 0.5,
     'lr_args': 1e3,
-    'l2_regularization': 1e-6,
-    'lambda': 0.1,
-    'mu': 1e-3,
-    'vary_param': 'fixed',
-    'decay_rate': 0.99,
+    'l2_regularization': 1e-4,
+    'lambda': 0.01,
+    'mu': 0.01,
+    'vary_param': 'tanh',
+    'decay_rate': 0.97,
+    'tol': 0.0001,
 }
 
 class FedRapServer(BaseServer):

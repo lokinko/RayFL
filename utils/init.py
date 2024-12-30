@@ -1,4 +1,6 @@
-import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from utils.logs import initLogging
 from utils.seeds import seed_anything
