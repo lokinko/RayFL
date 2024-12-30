@@ -23,7 +23,7 @@ class UserItemRatingDataset(Dataset):
         return self.user_tensor.size(0)
 
 
-class UserLoss(torch.nn.Module):
+class FedRapLoss(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -63,7 +63,7 @@ class UserLoss(torch.nn.Module):
         return loss
 
 
-@ray.remote(num_gpus=0.2)
+@ray.remote(num_gpus=0.15)
 class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
@@ -100,7 +100,7 @@ class FedRapActor(BaseClient):
         client_loss = []
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
-            loss_fn = UserLoss(self.args)
+            loss_fn = FedRapLoss(self.args)
             for users, items, ratings in dataloader:
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
@@ -120,5 +120,6 @@ class FedRapActor(BaseClient):
                     client_loss[epoch - 1]) < self.args['tol']:
                 break
 
+        client_model.to('cpu')
         logging.info(f"client {user['user_id']} training done, loss: {client_loss[-1]}.")
         return user['user_id'], client_model, client_loss

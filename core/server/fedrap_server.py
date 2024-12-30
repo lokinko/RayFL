@@ -80,6 +80,7 @@ class FedRapServer(BaseServer):
         test = self.group_seperate_items_by_ratings(test_users, test_items, test_ratings)
         return train, val, test
 
+
     def _negative_sample(self, pos_ratings: pd.DataFrame, negatives: dict, num_negatives):
         rating_df = pd.merge(pos_ratings, negatives[['userId', 'negative_samples']], on='userId')
         users, items, ratings = [], [], []
@@ -119,8 +120,9 @@ class FedRapServer(BaseServer):
         samples = 0
         global_item_community_weight = torch.zeros_like(self.model.item_commonality.weight)
         for user in participants:
-            global_item_community_weight += self.users[user]['model_dict']['item_commonality.weight'] * samples
-            samples += len(self.train_data[user]['train'][0])
+            logging.info(f'user sample = {samples}.')
+            global_item_community_weight += self.users[user]['model_dict']['item_commonality.weight'] * len(self.train_data[user]['train'])
+            samples += len(self.train_data[user]['train'])
         global_item_community_weight /= samples
         return {'item_commonality.weight': global_item_community_weight}
 
@@ -131,7 +133,7 @@ class FedRapServer(BaseServer):
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for result in results:
             user_id, client_model, client_loss = result
-            self.users[user_id]['model_dict'].update(client_model.to('cpu').state_dict())
+            self.users[user_id]['model_dict'].update(client_model.state_dict())
             self.users[user_id]['loss'] = client_loss
 
 
