@@ -54,47 +54,19 @@ class FedRapServer(BaseServer):
         self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
-    def allocate_data(self):
+    @measure_time()
+    def load_dataset(self):
         if self.args['dataset'] == 'movielens-1m':
             dataset = MovieLens(self.args)
-            train_ratings, val_ratings, test_ratings, negatives = dataset.load_user_dataset(
-                self.args['min_items'], self.args['work_dir'] / 'data/movielens-1m/ratings.dat')
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-1m/ratings.dat')
+
         elif self.args['dataset'] == 'movielens-100k':
             dataset = MovieLens(self.args)
-            train_ratings, val_ratings, test_ratings, negatives = dataset.load_user_dataset(
-                self.args['min_items'], self.args['work_dir'] / 'data/movielens-100k/ratings.data')
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.dat')
+
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
-
-        grouped_train_ratings = train_ratings.groupby('userId')
-        train = {}
-        for user_id, user_train_ratings in grouped_train_ratings:
-            train[user_id] = {}
-            train[user_id]['train'] = self._negative_sample(
-                user_train_ratings, negatives, self.args['num_negatives'])
-        val_users, val_items, val_ratings = self._negative_sample(
-            val_ratings, negatives, self.args['negatives_candidates'])
-        val = self.group_seperate_items_by_ratings(val_users, val_items, val_ratings)
-
-        test_users, test_items, test_ratings = self._negative_sample(
-            test_ratings, negatives, self.args['negatives_candidates'])
-        test = self.group_seperate_items_by_ratings(test_users, test_items, test_ratings)
-        return train, val, test
-
-
-    def _negative_sample(self, pos_ratings: pd.DataFrame, negatives: dict, num_negatives):
-        rating_df = pd.merge(pos_ratings, negatives[['userId', 'negative_samples']], on='userId')
-        users, items, ratings = [], [], []
-        for row in rating_df.itertuples():
-            users.append(int(row.userId))
-            items.append(int(row.itemId))
-            ratings.append(float(row.rating))
-
-            for _, neg_item in enumerate(random.sample(list(row.negative_samples), num_negatives)):
-                users.append(int(row.userId))
-                items.append(int(neg_item))
-                ratings.append(float(0))
-        return (users, items, ratings)
+        return dataset
 
 
     def select_participants(self):
@@ -103,18 +75,7 @@ class FedRapServer(BaseServer):
         return participants
 
 
-    def group_seperate_items_by_ratings(self, users, items, ratings):
-        user_dict = {}
-        for (user, item, rating) in zip(users, items, ratings):
-            if user not in user_dict:
-                user_dict[user] = {'positive_items': [], 'negative_items': []}
-            if rating == 1:
-                user_dict[user]['positive_items'].append(item)
-            else:
-                user_dict[user]['negative_items'].append(item)
-        return user_dict
-
-
+    @torch.no_grad()
     def aggregate(self, participants):
         assert participants is not None, "No participants selected for aggregation."
 
