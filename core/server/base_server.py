@@ -46,5 +46,5 @@ class BaseServer(ABC):
         pass
 
     @abstractmethod
-    def test(self, model_params, data):
+    def test_on_round(self, model_params, data):
         pass

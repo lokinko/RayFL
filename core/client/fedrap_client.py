@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
-from utils.init import init_all
+from utils.utils import initLogging, seed_anything
 
 class UserItemRatingDataset(Dataset):
     def __init__(self, user_tensor, item_tensor, rating_tensor):
@@ -68,7 +68,8 @@ class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.device = torch.device(self.args['device'])
-        init_all(self.args, args['log_dir'] / f"client_{os.getpid()}.log")
+        seed_anything(args['seed'])
+        initLogging(args['log_dir'] / f"client_{os.getpid()}.log", stream=False)
 
     def train(self, model, user_data):
         client_model = copy.deepcopy(model)

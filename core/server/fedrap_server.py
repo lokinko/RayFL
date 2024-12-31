@@ -12,7 +12,7 @@ from core.client.fedrap_client import FedRapActor
 from core.model.model.build_model import build_model
 from dataset import MovieLens
 from utils.metrics.metronatk import GlobalMetrics
-from utils.init import init_all
+from utils.utils import seed_anything, initLogging, measure_time
 
 special_args = {
     'model': 'cf',
@@ -39,7 +39,8 @@ class FedRapServer(BaseServer):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.args = special_args | self.args
-        init_all(self.args, args['log_dir'] / "server.log")
+        seed_anything(seed=self.args['seed'])
+        initLogging(args['log_dir'] / "server.log", stream=False)
 
     def allocate_init_status(self):
         self.train_data, self.val_data, self.test_data = self.allocate_data()

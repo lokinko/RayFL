@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 
-from utils.logs import initLogging
-
 class BaseClient(ABC):
     def __init__(self, args) -> None:
         self.args = args

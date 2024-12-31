@@ -7,8 +7,7 @@ import numpy as np
 from dotenv import load_dotenv
 
 from utils.args import get_args
-from utils.logs import initLogging
-from utils.seeds import seed_anything
+from utils.utils import seed_anything, initLogging
 
 class UtilsTest(unittest.TestCase):
     def setUp(self) -> None:
