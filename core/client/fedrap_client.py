@@ -63,7 +63,7 @@ class FedRapLoss(torch.nn.Module):
         return loss
 
 
-@ray.remote(num_gpus=0.15)
+@ray.remote(num_gpus=0.25)
 class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
@@ -74,7 +74,6 @@ class FedRapActor(BaseClient):
     def train(self, model, user_data):
         client_model = copy.deepcopy(model)
         user, train_data = user_data[0], user_data[1]['train']
-        logging.info(f"Training user with {len(train_data[0])} samples.")
 
         if user['model_dict'] is not None:
             user_model_dict = client_model.state_dict() | user['model_dict']
@@ -112,7 +111,7 @@ class FedRapActor(BaseClient):
                 optimizer.step()
                 scheduler.step()
 
-                epoch_loss += loss.item()
+                epoch_loss += loss.item() * len(users)
                 samples += len(users)
             client_loss.append(epoch_loss / samples)
 
@@ -122,5 +121,5 @@ class FedRapActor(BaseClient):
                 break
 
         client_model.to('cpu')
-        logging.info(f"client {user['user_id']} training done, loss: {client_loss[-1]}.")
+        logging.info(f"User {user['user_id']} training finished with loss = {client_loss}.")
         return user['user_id'], client_model, client_loss
