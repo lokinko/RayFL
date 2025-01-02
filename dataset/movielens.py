@@ -15,7 +15,7 @@ class MovieLens(BaseDataset):
     def load_user_dataset(self, min_items, data_file):
         # origin data with all [uid, mid, rating, timestamp] samples.
         data = pd.read_csv(
-            data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+            data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
 
         # filter the user with num_samples < min_items
         ratings = self.datasetFilter(data, min_items=min_items)
@@ -29,6 +29,8 @@ class MovieLens(BaseDataset):
         self.item_pool = set(self.ratings['itemId'].unique())
 
         self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings)
+
+        self.eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
 
         return None
 
@@ -53,7 +55,8 @@ class MovieLens(BaseDataset):
         item_id['itemId'] = np.arange(len(item_id))
         ratings = pd.merge(ratings, item_id, on=['mid'], how='left')
 
-        ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
+        # ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
+        ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by=['userId', 'timestamp'], ascending=True)
         return ratings
 
     def _binarize(self, ratings):
@@ -82,7 +85,8 @@ class MovieLens(BaseDataset):
             ['userId', 'itemId', 'rating']]
 
     def sample_data(self):
-        train_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        # train_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        train_neg_candidates = self.samples_negative_candidates(self.train_ratings, self.args['negatives_candidates'])
         grouped_ratings = self.train_ratings.groupby('userId')
         train = {}
         for user_id, user_ratings in grouped_ratings:
@@ -90,7 +94,8 @@ class MovieLens(BaseDataset):
             train[user_id]['train'] = self._negative_sample(
                 user_ratings, train_neg_candidates, self.args['num_negatives'])
 
-        eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        # eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        eval_neg_candidates = self.eval_neg_candidates
         val_users, val_items, val_ratings = self._negative_sample(
             self.val_ratings, eval_neg_candidates, self.args['negatives_candidates'])
         val = self.group_seperate_items_by_ratings(val_users, val_items, val_ratings)

@@ -10,7 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from core.server.base_server import BaseServer
-from core.client.fedrap_client import FedRapActor
+from core.client.fedncf_client import FedNcfActor
 from core.model.model.build_model import build_model
 from dataset import MovieLens
 from utils.metrics.metronatk import GlobalMetrics
@@ -37,7 +37,7 @@ special_args = {
     'tol': 0.0001,
 }
 
-class FedRapServer(BaseServer):
+class FedNcfServer(BaseServer):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.args = special_args | self.args
@@ -54,7 +54,7 @@ class FedRapServer(BaseServer):
                 'user_id': user,
                 'model_dict': copy.deepcopy(self.model.state_dict())}
 
-        self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_workers'])])
+        self.pool = ray.util.ActorPool([FedNcfActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
     @measure_time()
@@ -117,8 +117,8 @@ class FedRapServer(BaseServer):
 
             user_model.eval()
 
-            test_score, _, _ = user_model(user_data['positive_items'])
-            negative_score, _, _ = user_model(user_data['negative_items'])
+            test_score, _ = user_model(user_data['positive_items'])
+            negative_score, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score

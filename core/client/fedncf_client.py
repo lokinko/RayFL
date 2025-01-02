@@ -22,50 +22,8 @@ class UserItemRatingDataset(Dataset):
     def __len__(self):
         return self.user_tensor.size(0)
 
-
-class FedRapLoss(torch.nn.Module):
-    def __init__(self, args):
-        super().__init__()
-        self.args = args
-        self.crit = torch.nn.BCELoss()
-        self.independency = torch.nn.MSELoss()
-
-        if self.args['regular'] == 'l2':
-            self.reg = torch.nn.MSELoss()
-        elif self.args['regular'] == 'l1':
-            self.reg = torch.nn.L1Loss()
-        else:
-            self.reg = torch.nn.MSELoss()
-
-    def forward(self, ratings_pred, ratings, item_personality, item_commonality):
-        if self.args['regular'] == 'l2':
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'l1':
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'none':
-            self.args['mu'] = 0
-            dummy_target = item_commonality
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'nuc':
-            third = torch.norm(item_commonality, p='nuc')
-        elif self.args['regular'] == 'inf':
-            third = torch.norm(item_commonality, p=float('inf'))
-        else:
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-
-        # loss = self.crit(ratings_pred, ratings) \
-        #        - self.args['lambda'] * self.independency(item_personality, item_commonality) \
-        #        + self.args['mu'] * third
-        loss = self.crit(ratings_pred, ratings)
-
-        return loss
-
-
 @ray.remote(num_gpus=0.25)
-class FedRapActor(BaseClient):
+class FedNcfActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.device = torch.device(self.args['device'])
@@ -81,14 +39,9 @@ class FedRapActor(BaseClient):
             client_model.load_state_dict(user_model_dict)
 
         client_model = client_model.to(self.device)
-        # optimizer = torch.optim.SGD([
-        #     {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-        #     {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
-        #     {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
-        # ], weight_decay=self.args['l2_regularization'])
+
         optimizer = torch.optim.Adam([
                 {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-                {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
                 {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
             ])
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
@@ -106,13 +59,13 @@ class FedRapActor(BaseClient):
         client_loss = []
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
-            loss_fn = FedRapLoss(self.args)
+            loss_fn = torch.nn.BCELoss()
             for users, items, ratings in dataloader:
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
-                ratings_pred, items_personality, items_commonality = client_model(items)
+                ratings_pred, items_commonality = client_model(items)
 
-                loss = loss_fn(ratings_pred.view(-1), ratings, items_personality, items_commonality)
+                loss = loss_fn(ratings_pred.view(-1), ratings)
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
