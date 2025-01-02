@@ -57,6 +57,43 @@ class FedAugServer(BaseServer):
 
         self.pool = ray.util.ActorPool([FedAugActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
+    
+    def augment_dataset(self):
+        grouped_ratings = self.dataset.train_ratings.groupby('userId')
+
+        new_ratings_list = []
+        user_decoder = copy.deepcopy(self.decoder)
+        device = torch.device(self.args['device'])
+        user_decoder.to(device)
+        for user_id, user_ratings in grouped_ratings:
+
+            user_decoder.load_state_dict(self.users[user_id]['decoder_dict'])
+            id_sequences = user_ratings['itemId'].tolist()
+            for index, item in enumerate(id_sequences):
+                if index < 5: continue
+                
+                input_ids = torch.tensor(id_sequences[index-5: index]).to(device)
+                user_ids = torch.tensor([user_id]).to(device)
+                
+                outputs = user_decoder(input_ids=input_ids.unsqueeze(0), user_ids=user_ids.unsqueeze(0))
+                next_token_logits = outputs.logits[:, -1, :]
+                next_token_probs = torch.softmax(next_token_logits, dim=-1)
+                k = 3 
+                top_k_probs, top_k_indices = torch.topk(next_token_probs, k, dim=-1)
+                # print(top_k_indices)
+                for item_id in top_k_indices[0].tolist():
+                    # print(item_id)
+                    new_ratings_list.append({
+                        'userId': user_id,
+                        'itemId': item_id,
+                        'rating': 0.8
+                    })
+
+        new_ratings_df = pd.DataFrame(new_ratings_list)
+        self.dataset.train_ratings = pd.concat([self.dataset.train_ratings, new_ratings_df], ignore_index=True)
+
+        # resample
+        self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
 
     @measure_time()
     def load_dataset(self):

@@ -10,7 +10,7 @@ def run(args):
     server.allocate_init_status()
     logging.info(f"Creates {args['method']} server successfully.")
 
-    for communication_round in range(5):
+    for communication_round in range(1):
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
         logging.info(f"Round {communication_round}, participants: {len(participants)}")
@@ -19,7 +19,6 @@ def run(args):
         round_decoder_loss = sum([sum(server.users[user]['decoder_loss'])/len(server.users[user]['decoder_loss']) for user in server.users]) / len(server.users)
         server_decoder_params = server.aggregate_decoder(participants)
         
-        print(server_decoder_params.keys())
         for _, user in server.users.items():
             user['decoder_dict'].update(server_decoder_params)
 
@@ -39,6 +38,9 @@ def run(args):
                 "data": [server.train_data, server.val_data, server.test_data],
             }, save_path
         )
+
+    # generate data
+    server.augment_dataset()
 
     for communication_round in range(args['num_rounds']):
         print(f"Round {communication_round} starts.")
