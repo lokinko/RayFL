@@ -82,13 +82,15 @@ class FedAugServer(BaseServer):
     def aggregate_decoder(self, participants):
         assert participants is not None, "No participants selected for aggregation."
 
-        # Initialize a dictionary to hold aggregated weights
+        # Initialize a dictionary to hold aggregated weights, excluding 'condational_embedding.weight'
         global_decoder_state = {}
+        excluded_param = 'condational_embedding.weight'
+
         for param_name, param in self.decoder.state_dict().items():
-            global_decoder_state[param_name] = torch.zeros_like(param)
+            if param_name != excluded_param:
+                global_decoder_state[param_name] = torch.zeros_like(param)
 
         samples = 0
-
         for user in tqdm(participants, desc="Aggregating"):
             user_samples = len(self.train_data[user]['train_positive'])
             for param_name in global_decoder_state.keys():

@@ -62,7 +62,7 @@ class FedAugActor(BaseClient):
         # if user['user_id'] == 0:
         #     print(user['user_id'])
         #     print(len(train_seq_data))
-
+        print(user['decoder_dict'].keys())
         if user['decoder_dict'] is not None:
             user_decoder_dict = client_decoder.state_dict() | user['decoder_dict']
             client_decoder.load_state_dict(user_decoder_dict)
@@ -109,7 +109,7 @@ class FedAugActor(BaseClient):
                 # samples += len(user_ids)
                 epoch_loss += loss.item() * len(user_ids) * target_ids.size(1)
                 samples += len(user_ids) * target_ids.size(1)
-                
+
             client_decoder_loss.append(epoch_loss / samples)
             client_decoder_acc.append(total_correct_predictions / samples)
         
