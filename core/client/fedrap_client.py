@@ -56,10 +56,10 @@ class FedRapLoss(torch.nn.Module):
             dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
             third = self.reg(item_commonality, dummy_target)
 
-        # loss = self.crit(ratings_pred, ratings) \
-        #        - self.args['lambda'] * self.independency(item_personality, item_commonality) \
-        #        + self.args['mu'] * third
-        loss = self.crit(ratings_pred, ratings)
+        loss = self.crit(ratings_pred, ratings) \
+               - self.args['lambda'] * self.independency(item_personality, item_commonality) \
+               + self.args['mu'] * third
+        # loss = self.crit(ratings_pred, ratings)
 
         return loss
 
@@ -75,7 +75,6 @@ class FedRapActor(BaseClient):
     def train(self, model, user_data):
         client_model = copy.deepcopy(model)
         user, train_data = user_data[0], user_data[1]['train']
-
         if user['model_dict'] is not None:
             user_model_dict = client_model.state_dict() | user['model_dict']
             client_model.load_state_dict(user_model_dict)

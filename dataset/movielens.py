@@ -94,6 +94,8 @@ class MovieLens(BaseDataset):
             train[user_id]['train'] = self._negative_sample(
                 user_ratings, train_neg_candidates, self.args['num_negatives'])
 
+            train[user_id]['train_positive'] = user_ratings.itemId.tolist()
+
         # eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
         eval_neg_candidates = self.eval_neg_candidates
         val_users, val_items, val_ratings = self._negative_sample(

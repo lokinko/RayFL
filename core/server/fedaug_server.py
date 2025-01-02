@@ -10,7 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from core.server.base_server import BaseServer
-from core.client.fedrap_client import FedRapActor
+from core.client.fedaug_client import FedAugActor
 from core.model.model.build_model import build_model
 from dataset import MovieLens
 from utils.metrics.metronatk import GlobalMetrics
@@ -27,8 +27,8 @@ special_args = {
 
     'top_k': 10,
     'regular': 'l1',
-    'lr_network': 0.01,
-    'lr_args': 0.01,
+    'lr_network': 0.1,
+    'lr_args': 0.1,
     'l2_regularization': 1e-4,
     'lambda': 0.1,
     'mu': 0.1,
@@ -37,7 +37,7 @@ special_args = {
     'tol': 0.0001,
 }
 
-class FedRapServer(BaseServer):
+class FedAugServer(BaseServer):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.args = special_args | self.args
@@ -47,14 +47,15 @@ class FedRapServer(BaseServer):
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
-        self.model = build_model(self.args)
+        self.decoder, self.model = build_model(self.args)
 
         for user in self.train_data:
             self.users[user] = {
                 'user_id': user,
+                'decoder_dict': copy.deepcopy(self.decoder.state_dict()),
                 'model_dict': copy.deepcopy(self.model.state_dict())}
 
-        self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_workers'])])
+        self.pool = ray.util.ActorPool([FedAugActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
     @measure_time()
@@ -77,6 +78,28 @@ class FedRapServer(BaseServer):
             list(self.users), int(len(self.users) * self.args['client_sample_ratio']), replace=False)
         return participants
 
+    @torch.no_grad()
+    def aggregate_decoder(self, participants):
+        assert participants is not None, "No participants selected for aggregation."
+
+        # Initialize a dictionary to hold aggregated weights
+        global_decoder_state = {}
+        for param_name, param in self.decoder.state_dict().items():
+            global_decoder_state[param_name] = torch.zeros_like(param)
+
+        samples = 0
+
+        for user in tqdm(participants, desc="Aggregating"):
+            user_samples = len(self.train_data[user]['train_positive'])
+            for param_name in global_decoder_state.keys():
+                global_decoder_state[param_name] += self.users[user]['decoder_dict'][param_name] * user_samples
+            samples += user_samples
+
+        # Average the accumulated gradients by the total number of samples
+        for param_name in global_decoder_state.keys():
+            global_decoder_state[param_name] /= samples
+
+        return global_decoder_state
 
     @torch.no_grad()
     def aggregate(self, participants):
@@ -91,6 +114,14 @@ class FedRapServer(BaseServer):
         global_item_community_weight /= samples
         return {'item_commonality.weight': global_item_community_weight}
 
+    def train_decoder_on_round(self, participants):
+        results = self.pool.map_unordered(
+            lambda a, v: a.train_decoder.remote(copy.deepcopy(self.decoder), v), \
+            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
+        for result in tqdm(results, desc="Training", total=len(participants)):
+            user_id, client_decoder, client_decoder_loss = result
+            self.users[user_id]['decoder_dict'].update(client_decoder.state_dict())
+            self.users[user_id]['decoder_loss'] = client_decoder_loss
 
     def train_on_round(self, participants):
         results = self.pool.map_unordered(
@@ -117,8 +148,8 @@ class FedRapServer(BaseServer):
 
             user_model.eval()
 
-            test_score, _, _ = user_model(user_data['positive_items'])
-            negative_score, _, _ = user_model(user_data['negative_items'])
+            test_score, _ = user_model(user_data['positive_items'])
+            negative_score, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score
