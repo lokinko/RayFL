@@ -72,7 +72,7 @@ class FedAugActor(BaseClient):
         optimizer = torch.optim.Adam(client_decoder.parameters(), lr=0.01)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
-        seq_dataloader = DataLoader(
+        self.seq_dataloader = DataLoader(
             dataset=UserItemSeqDataset(uid=user['user_id'], seq=train_seq_data),
             batch_size=self.args['batch_size'],
             shuffle=True
@@ -86,7 +86,7 @@ class FedAugActor(BaseClient):
             total_correct_predictions = 0
             loss_fn = torch.nn.CrossEntropyLoss()
 
-            for input_ids, target_ids, user_ids in seq_dataloader:
+            for input_ids, target_ids, user_ids in self.seq_dataloader:
                 input_ids, target_ids, user_ids = input_ids.to(self.device), target_ids.to(self.device), user_ids.to(self.device)
 
                 optimizer.zero_grad()
@@ -118,9 +118,39 @@ class FedAugActor(BaseClient):
         logging.info(f"User {user['user_id']} training decoder finished with train_acc = {client_decoder_acc}.")
         return user['user_id'], client_decoder, client_decoder_loss
 
-    def train(self, model, user_data):
+    def augment_data(self, decoder, user_data):
+        user = user_data[0]
+        self.train_data = user_data[1]['train']
+        
+        client_decoder = copy.deepcopy(decoder)
+
+        if user['decoder_dict'] is not None:
+            user_decoder_dict = client_decoder.state_dict() | user['decoder_dict']
+            client_decoder.load_state_dict(user_decoder_dict)
+
+        client_decoder = client_decoder.to(self.device)
+        client_decoder.eval()
+        for input_ids, target_ids, user_ids in self.seq_dataloader:
+            input_ids, target_ids, user_ids = input_ids.to(self.device), target_ids.to(self.device), user_ids.to(self.device)
+            outputs = client_decoder(input_ids, user_ids)
+
+            next_token_logits = outputs.logits[:, -1, :]
+            next_token_probs = torch.softmax(next_token_logits, dim=-1)
+            k = 3 
+            top_k_probs, top_k_indices = torch.topk(next_token_probs, k, dim=-1)
+
+            for (user_id, item_id) in zip(user_ids.view(-1).tolist(), top_k_indices.tolist()):
+                self.train_data[0].extend([user_id] * k) # [user_id]*k
+                self.train_data[1].extend(item_id) # [item_id, item_id, item_id]
+                self.train_data[2].extend([0.8] * k) # [0.8]*k
+                
+        return self.train_data
+
+
+    def train(self, model, user):
         client_model = copy.deepcopy(model)
-        user, train_data = user_data[0], user_data[1]['train']
+        user = user
+        train_data = self.train_data
 
         if user['model_dict'] is not None:
             user_model_dict = client_model.state_dict() | user['model_dict']

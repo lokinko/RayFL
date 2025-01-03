@@ -40,7 +40,8 @@ def run(args):
         )
 
     # generate data
-    server.augment_dataset()
+    participants = server.select_participants()
+    server.augment_dataset(participants)
 
     for communication_round in range(args['num_rounds']):
         print(f"Round {communication_round} starts.")
