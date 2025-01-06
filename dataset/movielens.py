@@ -66,7 +66,7 @@ class MovieLens(BaseDataset):
             columns={'itemId': 'interacted_items'})
 
         interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: self.item_pool - x)
-        interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(x, negatives_candidates))
+        interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(x, min(len(x), negatives_candidates)))
         return interact_status[['userId', 'negative_items', 'negative_samples']]
 
     def _split_loo(self, ratings):
@@ -82,7 +82,7 @@ class MovieLens(BaseDataset):
             ['userId', 'itemId', 'rating']]
 
     def sample_data(self):
-        train_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        train_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['num_items'])
         grouped_ratings = self.train_ratings.groupby('userId')
         train = {}
         for user_id, user_ratings in grouped_ratings:

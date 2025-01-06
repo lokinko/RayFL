@@ -13,7 +13,7 @@ def run(args):
     for communication_round in range(args['num_rounds']):
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
-        logging.info(f"Round {communication_round}, participants: {participants}")
+        logging.info(f"Round = {communication_round}, participants: {participants}")
 
         server.train_on_round(participants)
         round_loss = sum([sum(server.users[user]['loss'])/len(server.users[user]['loss']) for user in server.users]) / len(server.users)
@@ -31,7 +31,7 @@ def run(args):
 
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
-        server.train_data, server.val_data, server.test_data = server.dataset.sample_data()
+        server.train_data, _ , _ = server.dataset.sample_data()
 
         # if server.args['vary_param'] == 'tanh':
         #     server.args['lambda'] = math.tanh(communication_round / 10) * server.args['lambda']
