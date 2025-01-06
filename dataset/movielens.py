@@ -30,8 +30,6 @@ class MovieLens(BaseDataset):
 
         self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings)
 
-        self.eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
-
         return None
 
     def datasetFilter(self, ratings, min_items=5):
@@ -64,13 +62,58 @@ class MovieLens(BaseDataset):
         data.loc[data['rating'] > 0, 'rating'] = 1.0
         return data
 
-    def samples_negative_candidates(self, ratings, negatives_candidates: int):
+    def get_all_train_negative(self, ratings):
         interact_status = ratings.groupby('userId')['itemId'].apply(set).reset_index().rename(
             columns={'itemId': 'interacted_items'})
 
         interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: self.item_pool - x)
-        interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(x, negatives_candidates))
-        return interact_status[['userId', 'negative_items', 'negative_samples']]
+        return interact_status[['userId', 'negative_items']]
+
+    def get_part_test_negative(self, ratings, negatives_candidates: int):
+        interact_status = ratings.groupby('userId')['itemId'].apply(set).reset_index().rename(
+            columns={'itemId': 'interacted_items'})
+
+        interact_status['negative_items'] = interact_status['interacted_items'].apply(lambda x: self.item_pool - x)
+        interact_status['negative_items'] = interact_status['negative_items'].apply(lambda x: random.sample(x, negatives_candidates))
+        return interact_status[['userId', 'negative_items']]
+
+    def get_train_data(self):
+        train_negative = self.get_all_train_negative(self.train_ratings)
+
+        grouped_ratings = self.train_ratings.groupby('userId')
+        train = {}
+        for user_id, user_ratings in grouped_ratings:
+            train[user_id] = {}
+            train[user_id]['train'] = self._negative_sample(
+                user_ratings, train_negative, self.args['num_negatives'])
+
+            train[user_id]['train_positive'] = user_ratings.itemId.tolist()
+
+        return train
+
+    def get_test_data(self):
+        test_negative = self.get_part_test_negative(self.ratings, self.args['negatives_candidates'])
+
+        test_users, test_items, test_ratings = self._negative_sample(
+            self.test_ratings, test_negative, self.args['negatives_candidates'])
+
+        test = self.group_seperate_items_by_ratings(test_users, test_items, test_ratings)
+
+        return test
+
+    def _negative_sample(self, pos_ratings: pd.DataFrame, negatives: dict, num_negatives):
+        rating_df = pd.merge(pos_ratings, negatives[['userId', 'negative_items']], on='userId')
+        users, items, ratings = [], [], []
+        for row in rating_df.itertuples():
+            users.append(int(row.userId))
+            items.append(int(row.itemId))
+            ratings.append(float(row.rating))
+            if float(row.rating) != 1.0: continue
+            for _, neg_item in enumerate(random.sample(list(row.negative_items), num_negatives)):
+                users.append(int(row.userId))
+                items.append(int(neg_item))
+                ratings.append(float(0))
+        return (users, items, ratings)
 
     def _split_loo(self, ratings):
         ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
@@ -83,43 +126,6 @@ class MovieLens(BaseDataset):
 
         return train[['userId', 'itemId', 'rating']], val[['userId', 'itemId', 'rating']], test[
             ['userId', 'itemId', 'rating']]
-
-    def sample_data(self):
-        # train_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
-        train_neg_candidates = self.samples_negative_candidates(self.train_ratings, self.args['negatives_candidates'])
-        grouped_ratings = self.train_ratings.groupby('userId')
-        train = {}
-        for user_id, user_ratings in grouped_ratings:
-            train[user_id] = {}
-            train[user_id]['train'] = self._negative_sample(
-                user_ratings, train_neg_candidates, self.args['num_negatives'])
-
-            train[user_id]['train_positive'] = user_ratings.itemId.tolist()
-
-        # eval_neg_candidates = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
-        eval_neg_candidates = self.eval_neg_candidates
-        val_users, val_items, val_ratings = self._negative_sample(
-            self.val_ratings, eval_neg_candidates, self.args['negatives_candidates'])
-        val = self.group_seperate_items_by_ratings(val_users, val_items, val_ratings)
-
-        test_users, test_items, test_ratings = self._negative_sample(
-            self.test_ratings, eval_neg_candidates, self.args['negatives_candidates'])
-        test = self.group_seperate_items_by_ratings(test_users, test_items, test_ratings)
-        return train, val, test
-
-    def _negative_sample(self, pos_ratings: pd.DataFrame, negatives: dict, num_negatives):
-        rating_df = pd.merge(pos_ratings, negatives[['userId', 'negative_samples']], on='userId')
-        users, items, ratings = [], [], []
-        for row in rating_df.itertuples():
-            users.append(int(row.userId))
-            items.append(int(row.itemId))
-            ratings.append(float(row.rating))
-
-            for _, neg_item in enumerate(random.sample(list(row.negative_samples), num_negatives)):
-                users.append(int(row.userId))
-                items.append(int(neg_item))
-                ratings.append(float(0))
-        return (users, items, ratings)
 
     def group_seperate_items_by_ratings(self, users, items, ratings):
         user_dict = {}

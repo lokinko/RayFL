@@ -5,6 +5,7 @@ import logging
 import ray
 
 import torch
+import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
@@ -118,9 +119,8 @@ class FedAugActor(BaseClient):
         logging.info(f"User {user['user_id']} training decoder finished with train_acc = {client_decoder_acc}.")
         return user['user_id'], client_decoder, client_decoder_loss
 
-    def augment_data(self, decoder, user_data):
-        user = user_data[0]
-        self.train_data = user_data[1]['train']
+    def augment_data(self, decoder, user):
+        user = user
         
         client_decoder = copy.deepcopy(decoder)
 
@@ -130,27 +130,38 @@ class FedAugActor(BaseClient):
 
         client_decoder = client_decoder.to(self.device)
         client_decoder.eval()
+
+        new_user_ratings_df_list = []
         for input_ids, target_ids, user_ids in self.seq_dataloader:
             input_ids, target_ids, user_ids = input_ids.to(self.device), target_ids.to(self.device), user_ids.to(self.device)
             outputs = client_decoder(input_ids, user_ids)
-
-            next_token_logits = outputs.logits[:, -1, :]
+            # print(outputs.logits)
+            # print(outputs.logits[:, -1, :])
+            # break
+            next_token_logits = outputs.logits[:, 0, :]
             next_token_probs = torch.softmax(next_token_logits, dim=-1)
-            k = 3 
+            k = 1 
             top_k_probs, top_k_indices = torch.topk(next_token_probs, k, dim=-1)
 
-            for (user_id, item_id) in zip(user_ids.view(-1).tolist(), top_k_indices.tolist()):
-                self.train_data[0].extend([user_id] * k) # [user_id]*k
-                self.train_data[1].extend(item_id) # [item_id, item_id, item_id]
-                self.train_data[2].extend([0.8] * k) # [0.8]*k
-                
-        return self.train_data
+            new_batch_ratings_df_list = []
+            for (user_id, item_ids) in zip(user_ids.view(-1).tolist(), top_k_indices.tolist()):
+                data_dict = {
+                    'userId': [user_id] * k,
+                    'itemId': item_ids,
+                    'rating': [0.8] * k,
+                }
+                new_elem_ratings_df = pd.DataFrame(data_dict)
+                new_batch_ratings_df_list.append(new_elem_ratings_df)
+            new_batch_ratings_df = pd.concat(new_batch_ratings_df_list, ignore_index=True)
+
+            new_user_ratings_df_list.append(new_batch_ratings_df)
+        new_user_ratings_df = pd.concat(new_user_ratings_df_list, ignore_index=True)
+        return new_user_ratings_df
 
 
-    def train(self, model, user):
+    def train(self, model, user_data):
         client_model = copy.deepcopy(model)
-        user = user
-        train_data = self.train_data
+        user, train_data  = user_data[0], user_data[1]['train']
 
         if user['model_dict'] is not None:
             user_model_dict = client_model.state_dict() | user['model_dict']

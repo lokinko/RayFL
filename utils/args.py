@@ -23,7 +23,7 @@ def get_args():
     parser.add_argument('-lr', type=float, default=0.01)
     parser.add_argument('-cr', '--client_sample_ratio', type=float, default=1.0)
     parser.add_argument('-bs', '--batch_size', type=int, default=2048)
-    parser.add_argument('--local_epoch', type=int, default=10)
+    parser.add_argument('--local_epoch', type=int, default=5)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=2)
 

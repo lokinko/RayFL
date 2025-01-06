@@ -46,7 +46,9 @@ class FedNcfServer(BaseServer):
 
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
-        self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
+        # self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
+        self.train_data = self.dataset.get_train_data()
+        self.test_data = self.dataset.get_test_data()
         self.model = build_model(self.args)
 
         for user in self.train_data:

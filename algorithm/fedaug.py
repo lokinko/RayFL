@@ -10,7 +10,8 @@ def run(args):
     server.allocate_init_status()
     logging.info(f"Creates {args['method']} server successfully.")
 
-    for communication_round in range(1):
+    for communication_round in range(50):
+        
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
         logging.info(f"Round {communication_round}, participants: {len(participants)}")
@@ -42,10 +43,14 @@ def run(args):
     # generate data
     participants = server.select_participants()
     server.augment_dataset(participants)
+    server.test_data = server.dataset.get_test_data()
 
     for communication_round in range(args['num_rounds']):
+        server.train_data = server.dataset.get_train_data()
+
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
+
         logging.info(f"Round {communication_round}, participants: {len(participants)}")
 
         server.train_on_round(participants)
@@ -64,7 +69,6 @@ def run(args):
 
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
-        server.train_data, server.val_data, server.test_data = server.dataset.sample_data()
 
         save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
 

@@ -46,7 +46,9 @@ class FedAugServer(BaseServer):
 
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
-        self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
+        # self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
+        self.train_data = self.dataset.get_train_data()
+        self.test_data = self.dataset.get_test_data()
         self.decoder, self.model = build_model(self.args)
 
         for user in self.train_data:
@@ -57,43 +59,6 @@ class FedAugServer(BaseServer):
 
         self.pool = ray.util.ActorPool([FedAugActor.remote(self.args) for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
-    
-    # def augment_dataset(self):
-    #     grouped_ratings = self.dataset.train_ratings.groupby('userId')
-
-    #     new_ratings_list = []
-    #     user_decoder = copy.deepcopy(self.decoder)
-    #     device = torch.device(self.args['device'])
-    #     user_decoder.to(device)
-    #     for user_id, user_ratings in grouped_ratings:
-
-    #         user_decoder.load_state_dict(self.users[user_id]['decoder_dict'])
-    #         id_sequences = user_ratings['itemId'].tolist()
-    #         for index, item in enumerate(id_sequences):
-    #             if index < 5: continue
-                
-    #             input_ids = torch.tensor(id_sequences[index-5: index]).to(device)
-    #             user_ids = torch.tensor([user_id]).to(device)
-                
-    #             outputs = user_decoder(input_ids=input_ids.unsqueeze(0), user_ids=user_ids.unsqueeze(0))
-    #             next_token_logits = outputs.logits[:, -1, :]
-    #             next_token_probs = torch.softmax(next_token_logits, dim=-1)
-    #             k = 3 
-    #             top_k_probs, top_k_indices = torch.topk(next_token_probs, k, dim=-1)
-    #             # print(top_k_indices)
-    #             for item_id in top_k_indices[0].tolist():
-    #                 # print(item_id)
-    #                 new_ratings_list.append({
-    #                     'userId': user_id,
-    #                     'itemId': item_id,
-    #                     'rating': 0.8
-    #                 })
-
-    #     new_ratings_df = pd.DataFrame(new_ratings_list)
-    #     self.dataset.train_ratings = pd.concat([self.dataset.train_ratings, new_ratings_df], ignore_index=True)
-
-    #     # resample
-    #     self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
 
     @measure_time()
     def load_dataset(self):
@@ -165,7 +130,7 @@ class FedAugServer(BaseServer):
     def train_on_round(self, participants):
         results = self.pool.map_unordered(
             lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
-            [self.users[user_id] for user_id in participants])
+            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for result in tqdm(results, desc="Training", total=len(participants)):
             user_id, client_model, client_loss = result
             self.users[user_id]['model_dict'].update(client_model.state_dict())
@@ -173,11 +138,12 @@ class FedAugServer(BaseServer):
 
     @torch.no_grad()
     def augment_dataset(self, participants):
-        train_datas = self.pool.map_unordered(
+        new_user_ratings_dfs = self.pool.map_unordered(
             lambda a, v: a.augment_data.remote(copy.deepcopy(self.decoder), v), \
-            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
-        for train_data in tqdm(train_datas, desc="Augmenting", total=len(participants)):
-            pass
+            [self.users[user_id] for user_id in participants])
+        for new_user_ratings_df in tqdm(new_user_ratings_dfs, desc="Augmenting", total=len(participants)):
+            self.dataset.train_ratings = pd.concat([self.dataset.train_ratings, new_user_ratings_df], ignore_index=True)
+            self.dataset.ratings = pd.concat([self.dataset.ratings, new_user_ratings_df], ignore_index=True)
 
     @torch.no_grad()
     def test_on_round(self, user_ratings: dict):
