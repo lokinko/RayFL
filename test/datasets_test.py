@@ -1,5 +1,7 @@
 import unittest
 
+import ray
+
 from dataset import MovieLens
 
 dataset_dir = '../data/'
@@ -14,14 +16,15 @@ class DatasetsTest(unittest.TestCase):
         }
 
         dataset = MovieLens(args)
-        dataset.load_user_dataset(args['min_items'], dataset_dir + f"{args['dataset']}/ratings.dat")
+        ray.get(dataset.load_user_dataset.remote(args['min_items'], dataset_dir + f"{args['dataset']}/ratings.dat"))
         if args['dataset'] == 'movielens-1m':
             args['num_users'] = len(dataset.user_pool)
             args['num_items'] = len(dataset.item_pool)
             self.assertEqual(args['num_users'], 6040)
             self.assertEqual(args['num_items'], 3706)
 
-        train, val, test = dataset.sample_data()
+        train = ray.get(dataset.sample_train_data.remote())
+        val, test = ray.get(dataset.sample_test_data.remote())
         for user, data in train.items():
             self.assertEqual(len(data['train']), 3) # user, item, rating
             self.assertEqual(len(data['train'][0]) % (args['num_negatives'] + 1), 0)

@@ -1,7 +1,7 @@
 import copy
 import logging
 
-import torch
+import ray
 
 from core.server.fedrap_server import FedRapServer
 
@@ -14,6 +14,7 @@ def run(args):
         logging.info(f"{'='*20} Round {communication_round} starts {'='*20}")
         participants = server.select_participants()
 
+        train_data = server.dataset.sample_train_data.remote()
         server.train_on_round(participants)
         round_loss = sum(sum(server.users[user_id]['loss']) / len(server.users[user_id]['loss']) for user_id in participants) / len(participants)
 
@@ -39,15 +40,17 @@ def run(args):
         if not save_path.parent.exists():
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(
-            {
-                "origin_params": origin_params,
-                "aggregate_params": server_params,
-                "updated_params": server.model.state_dict(),
-                "participants": participants,
-                "users": server.users,
-                "args": server.args,
-                "data": [server.train_data, server.val_data, server.test_data],
-                "metrics": [hr, ndcg]
-            }, save_path
-        )
+        # torch.save(
+        #     {
+        #         "origin_params": origin_params,
+        #         "aggregate_params": server_params,
+        #         "updated_params": server.model.state_dict(),
+        #         "participants": participants,
+        #         "users": server.users,
+        #         "args": server.args,
+        #         "data": [server.train_data, server.val_data, server.test_data],
+        #         "metrics": [test_hr, test_ndcg]
+        #     }, save_path
+        # )
+
+        server.train_data = ray.get(train_data)

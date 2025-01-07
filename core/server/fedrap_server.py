@@ -46,7 +46,8 @@ class FedRapServer(BaseServer):
 
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
-        self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
+        self.train_data = ray.get(self.dataset.sample_train_data.remote())
+        self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
         self.model = build_model(self.args)
 
         for user in self.train_data:
@@ -54,18 +55,23 @@ class FedRapServer(BaseServer):
                 'user_id': user,
                 'model_dict': copy.deepcopy(self.model.state_dict())}
 
-        self.pool = ray.util.ActorPool([FedRapActor.remote(self.args) for _ in range(self.args['num_workers'])])
+        self.pool = ray.util.ActorPool([
+            FedRapActor.options(
+                num_cpus=0.2, num_gpus=self.args['num_gpus'] / float(self.args['num_workers'])).remote(self.args)
+                for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
     @measure_time()
     def load_dataset(self):
         if self.args['dataset'] == 'movielens-1m':
-            dataset = MovieLens(self.args)
-            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-1m/ratings.dat')
+            dataset = MovieLens.remote(self.args)
+            ray.get(dataset.load_user_dataset.remote(
+                self.args['min_items'], self.args['work_dir']/'data/movielens-1m/ratings.dat'))
 
         elif self.args['dataset'] == 'movielens-100k':
-            dataset = MovieLens(self.args)
-            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.dat')
+            dataset = MovieLens.remote(self.args)
+            ray.get(dataset.load_user_dataset(
+                self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.dat'))
 
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
