@@ -10,7 +10,7 @@ def run(args):
     server.allocate_init_status()
     logging.info(f"Creates {args['method']} server successfully.")
 
-    for communication_round in range(50):
+    for communication_round in range(10):
         
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
@@ -43,11 +43,11 @@ def run(args):
     # generate data
     participants = server.select_participants()
     server.augment_dataset(participants)
-    server.test_data = server.dataset.get_test_data()
+    server.test_data = server.dataset.test_data
 
     for communication_round in range(args['num_rounds']):
-        server.train_data = server.dataset.get_train_data()
-
+        server.train_data = server.dataset.sample_train_data()
+        
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
 

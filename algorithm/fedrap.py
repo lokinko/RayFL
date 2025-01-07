@@ -11,11 +11,11 @@ def run(args):
     logging.info(f"Creates {args['method']} server successfully.")
 
     for communication_round in range(args['num_rounds']):
-        server.train_data = server.dataset.get_train_data()
+        server.train_data = server.dataset.sample_train_data()
 
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
-        logging.info(f"Round {communication_round}, participants: {participants}")
+        logging.info(f"Round {communication_round}, participants: {len(participants)}")
 
         server.train_on_round(participants)
         round_loss = sum([sum(server.users[user]['loss'])/len(server.users[user]['loss']) for user in server.users]) / len(server.users)

@@ -11,7 +11,7 @@ def run(args):
     logging.info(f"Creates {args['method']} server successfully.")
 
     for communication_round in range(args['num_rounds']):
-        server.train_data = server.dataset.get_train_data()
+        server.train_data = server.dataset.sample_train_data()
 
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()

@@ -27,8 +27,8 @@ special_args = {
 
     'top_k': 10,
     'regular': 'l1',
-    'lr_network': 0.01,
-    'lr_args': 0.01,
+    'lr_network': 0.1,
+    'lr_args': 0.1,
     'l2_regularization': 1e-4,
     'lambda': 0.1,
     'mu': 0.1,
@@ -47,8 +47,8 @@ class FedRapServer(BaseServer):
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         # self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
-        self.train_data = self.dataset.get_train_data()
-        self.test_data = self.dataset.get_test_data()
+        self.train_data = self.dataset.sample_train_data()
+        self.test_data = self.dataset.test_data
         self.model = build_model(self.args)
 
         for user in self.train_data:

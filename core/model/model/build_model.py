@@ -20,7 +20,8 @@ def build_model(args) -> torch.nn.Module:
         )
         # decoder = CustomGPT2LMHeadModel(gpt2_config, condational_method=args['condational_method'])
         decoder = CustomGPT2LMHeadModel(gpt2_config, condational_method='add')
-        model = CollaboFilterModel(args)
+        # model = CollaboFilterModel(args)
+        model = PersonalizedCollaboFilterModel(args)
         return decoder, model
     else:
         raise NotImplementedError(f"Model {args['model']} not implemented")

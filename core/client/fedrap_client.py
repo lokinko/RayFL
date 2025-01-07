@@ -56,10 +56,10 @@ class FedRapLoss(torch.nn.Module):
             dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
             third = self.reg(item_commonality, dummy_target)
 
-        loss = self.crit(ratings_pred, ratings) \
-               - self.args['lambda'] * self.independency(item_personality, item_commonality) \
-               + self.args['mu'] * third
-        # loss = self.crit(ratings_pred, ratings)
+        # loss = self.crit(ratings_pred, ratings) \
+        #        - self.args['lambda'] * self.independency(item_personality, item_commonality) \
+        #        + self.args['mu'] * third
+        loss = self.crit(ratings_pred, ratings)
 
         return loss
 

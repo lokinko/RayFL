@@ -47,8 +47,8 @@ class FedAugServer(BaseServer):
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         # self.train_data, self.val_data, self.test_data = self.dataset.sample_data()
-        self.train_data = self.dataset.get_train_data()
-        self.test_data = self.dataset.get_test_data()
+        self.train_data = self.dataset.sample_train_data()
+        self.test_data = self.dataset.test_data
         self.decoder, self.model = build_model(self.args)
 
         for user in self.train_data:
@@ -86,7 +86,8 @@ class FedAugServer(BaseServer):
 
         # Initialize a dictionary to hold aggregated weights, excluding 'condational_embedding.weight'
         global_decoder_state = {}
-        excluded_param = 'condational_embedding.weight'
+        # excluded_param = 'condational_embedding.weight'
+        excluded_param = 'none'
 
         for param_name, param in self.decoder.state_dict().items():
             if param_name != excluded_param:
@@ -140,7 +141,8 @@ class FedAugServer(BaseServer):
     def augment_dataset(self, participants):
         new_user_ratings_dfs = self.pool.map_unordered(
             lambda a, v: a.augment_data.remote(copy.deepcopy(self.decoder), v), \
-            [self.users[user_id] for user_id in participants])
+            # [self.users[user_id] for user_id in participants])
+            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for new_user_ratings_df in tqdm(new_user_ratings_dfs, desc="Augmenting", total=len(participants)):
             self.dataset.train_ratings = pd.concat([self.dataset.train_ratings, new_user_ratings_df], ignore_index=True)
             self.dataset.ratings = pd.concat([self.dataset.ratings, new_user_ratings_df], ignore_index=True)
@@ -161,8 +163,10 @@ class FedAugServer(BaseServer):
 
             user_model.eval()
 
-            test_score, _ = user_model(user_data['positive_items'])
-            negative_score, _ = user_model(user_data['negative_items'])
+            # test_score, _ = user_model(user_data['positive_items'])
+            # negative_score, _ = user_model(user_data['negative_items'])
+            test_score, _, _ = user_model(user_data['positive_items'])
+            negative_score, _, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score

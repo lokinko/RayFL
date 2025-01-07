@@ -42,6 +42,9 @@ class UserItemSeqDataset(Dataset):
             self.target_ids.append(torch.tensor(target_chunk))
             # self.user_ids.append(torch.tensor([uid] * len(input_chunk)))
             self.user_ids.append(torch.tensor([uid]))
+        print(self.input_ids)
+        print(self.target_ids)
+        print(self.user_ids)
 
     def __len__(self):
         return len(self.input_ids)
@@ -60,6 +63,7 @@ class FedAugActor(BaseClient):
     def train_decoder(self, decoder, user_data):
         client_decoder = copy.deepcopy(decoder)
         user, train_seq_data  = user_data[0], user_data[1]['train_positive']
+        print(train_seq_data)
         # if user['user_id'] == 0:
         #     print(user['user_id'])
         #     print(len(train_seq_data))
@@ -73,7 +77,7 @@ class FedAugActor(BaseClient):
         optimizer = torch.optim.Adam(client_decoder.parameters(), lr=0.01)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
-        self.seq_dataloader = DataLoader(
+        seq_dataloader = DataLoader(
             dataset=UserItemSeqDataset(uid=user['user_id'], seq=train_seq_data),
             batch_size=self.args['batch_size'],
             shuffle=True
@@ -87,7 +91,7 @@ class FedAugActor(BaseClient):
             total_correct_predictions = 0
             loss_fn = torch.nn.CrossEntropyLoss()
 
-            for input_ids, target_ids, user_ids in self.seq_dataloader:
+            for input_ids, target_ids, user_ids in seq_dataloader:
                 input_ids, target_ids, user_ids = input_ids.to(self.device), target_ids.to(self.device), user_ids.to(self.device)
 
                 optimizer.zero_grad()
@@ -95,8 +99,23 @@ class FedAugActor(BaseClient):
                 logits = outputs.logits
 
                 # Compute predictions and accuracy
-                _, predicted = torch.max(logits, dim=-1)
-                correct_predictions = (predicted.view(-1) == target_ids.view(-1)).sum().item()
+                # _, predicted = torch.max(logits, dim=-1)
+                # correct_predictions = (predicted.view(-1) == target_ids.view(-1)).sum().item()
+                # total_correct_predictions += correct_predictions
+
+                # Get the top 10 predictions for each time step in each sample of the batch
+                _, top_10_predictions = torch.topk(logits, k=10, dim=-1)  # Shape: (batch_size, seq_length, 10)
+
+                # Expand target_ids to match the shape of top_10_predictions for comparison
+                target_ids_expanded = target_ids.unsqueeze(-1).expand_as(top_10_predictions)  # Shape: (batch_size, seq_length, 10)
+
+                # Check if target_ids is among the top 10 predictions for each time step
+                correct_in_top_10 = (top_10_predictions == target_ids_expanded).any(dim=-1)  # Shape: (batch_size, seq_length)
+
+                # Sum up the number of correct predictions across all time steps and samples in the batch
+                correct_predictions = correct_in_top_10.sum().item()
+
+                # Add to total_correct_predictions
                 total_correct_predictions += correct_predictions
 
                 # Compute loss
@@ -119,10 +138,15 @@ class FedAugActor(BaseClient):
         logging.info(f"User {user['user_id']} training decoder finished with train_acc = {client_decoder_acc}.")
         return user['user_id'], client_decoder, client_decoder_loss
 
-    def augment_data(self, decoder, user):
-        user = user
-        
+    def augment_data(self, decoder, user_data):
         client_decoder = copy.deepcopy(decoder)
+        user, train_seq_data  = user_data[0], user_data[1]['train_positive']
+        
+        seq_dataloader = DataLoader(
+            dataset=UserItemSeqDataset(uid=user['user_id'], seq=train_seq_data),
+            batch_size=self.args['batch_size'],
+            shuffle=True
+        )
 
         if user['decoder_dict'] is not None:
             user_decoder_dict = client_decoder.state_dict() | user['decoder_dict']
@@ -132,7 +156,7 @@ class FedAugActor(BaseClient):
         client_decoder.eval()
 
         new_user_ratings_df_list = []
-        for input_ids, target_ids, user_ids in self.seq_dataloader:
+        for input_ids, target_ids, user_ids in seq_dataloader:
             input_ids, target_ids, user_ids = input_ids.to(self.device), target_ids.to(self.device), user_ids.to(self.device)
             outputs = client_decoder(input_ids, user_ids)
             # print(outputs.logits)
@@ -148,7 +172,7 @@ class FedAugActor(BaseClient):
                 data_dict = {
                     'userId': [user_id] * k,
                     'itemId': item_ids,
-                    'rating': [0.8] * k,
+                    'rating': [0.7] * k,
                 }
                 new_elem_ratings_df = pd.DataFrame(data_dict)
                 new_batch_ratings_df_list.append(new_elem_ratings_df)
@@ -162,15 +186,20 @@ class FedAugActor(BaseClient):
     def train(self, model, user_data):
         client_model = copy.deepcopy(model)
         user, train_data  = user_data[0], user_data[1]['train']
-
+        print(train_data)
         if user['model_dict'] is not None:
             user_model_dict = client_model.state_dict() | user['model_dict']
             client_model.load_state_dict(user_model_dict)
 
         client_model = client_model.to(self.device)
 
+        # optimizer = torch.optim.Adam([
+        #         {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+        #         {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
+        #     ])
         optimizer = torch.optim.Adam([
                 {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+                {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
                 {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
             ])
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
@@ -192,7 +221,8 @@ class FedAugActor(BaseClient):
             for users, items, ratings in dataloader:
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
-                ratings_pred, items_commonality = client_model(items)
+                # ratings_pred, items_commonality = client_model(items)
+                ratings_pred, items_personality, items_commonality = client_model(items) #note
 
                 loss = loss_fn(ratings_pred.view(-1), ratings)
                 loss.backward()
