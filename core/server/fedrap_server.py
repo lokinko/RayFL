@@ -84,7 +84,7 @@ class FedRapServer(BaseServer):
 
         samples = 0
         global_item_community_weight = torch.zeros_like(self.model.item_commonality.weight)
-        for user in tqdm(participants, desc="Aggregating"):
+        for user in tqdm(participants, desc="Aggregating", ncols=120):
             global_item_community_weight += self.users[user]['model_dict']['item_commonality.weight'] \
                                             * len(self.train_data[user]['train'])
             samples += len(self.train_data[user]['train'])
@@ -96,7 +96,7 @@ class FedRapServer(BaseServer):
         results = self.pool.map_unordered(
             lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
-        for result in tqdm(results, desc="Training", total=len(participants)):
+        for result in tqdm(results, desc="Training", total=len(participants), ncols=120):
             user_id, client_model, client_loss = result
             self.users[user_id]['model_dict'].update(client_model.state_dict())
             self.users[user_id]['loss'] = client_loss
@@ -107,7 +107,7 @@ class FedRapServer(BaseServer):
         negative_scores = None
         test_users, test_items, negative_users, negative_items = None, None, None, None
 
-        for user, user_data in tqdm(user_ratings.items(), desc="Testing"):
+        for user, user_data in tqdm(user_ratings.items(), desc="Testing", ncols=120):
             # load each user's mlp parameters.
             user_model = copy.deepcopy(self.model)
 
