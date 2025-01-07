@@ -26,6 +26,7 @@ def get_args():
     parser.add_argument('--local_epoch', type=int, default=10)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=2)
+    parser.add_argument('--num_gpus', type=int, default=torch.cuda.device_count())
 
     args, unknown_args = parser.parse_known_args()
 

@@ -63,7 +63,7 @@ class FedRapLoss(torch.nn.Module):
         return loss
 
 
-@ray.remote(num_gpus=0.25)
+@ray.remote
 class FedRapActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)

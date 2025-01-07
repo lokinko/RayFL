@@ -4,6 +4,7 @@ import traceback
 from dotenv import load_dotenv
 load_dotenv()
 
+import ray
 import torch
 
 from algorithm import *
@@ -11,9 +12,6 @@ from utils.args import get_args
 from utils.utils import initLogging, seed_anything
 
 if __name__ == "__main__":
-    import ray
-    ray.init(num_gpus=torch.cuda.device_count())
-
     args, _ = get_args()
     seed_anything(seed=args['seed'])
     initLogging(args['log_dir'] / "main.log")
@@ -25,5 +23,6 @@ if __name__ == "__main__":
         except Exception:
             logging.error(f"Record task configuration failed, {traceback.format_exc()}")
 
+    ray.init(num_gpus=min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
     algorithm = importlib.import_module(f"algorithm.{args['method']}")
     algorithm.run(args)
