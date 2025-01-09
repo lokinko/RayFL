@@ -28,6 +28,8 @@ def get_args():
     parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--num_gpus', type=int, default=torch.cuda.device_count())
 
+    parser.add_argument('--verbose', type=bool, default=True)
+
     args, unknown_args = parser.parse_known_args()
 
     args = vars(args)

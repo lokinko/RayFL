@@ -2,6 +2,10 @@ import copy
 import logging
 
 import ray
+import torch
+import seaborn as sns
+import matplotlib.pyplot as plt
+import wandb
 
 from core.server.fedrap_server import FedRapServer
 
@@ -19,7 +23,7 @@ def run(args):
         round_loss = sum(sum(server.users[user_id]['loss']) / len(server.users[user_id]['loss']) for user_id in participants) / len(participants)
 
         origin_params = copy.deepcopy(server.model.state_dict())
-        server_params = server.aggregate(participants)
+        server_params = server.aggregate(participants, ['item_commonality.weight'])
 
         for _, user in server.users.items():
             user['model_dict'].update(server_params)
@@ -28,9 +32,39 @@ def run(args):
 
         val_hr, val_ndcg = server.test_on_round(server.val_data)
         test_hr, test_ndcg = server.test_on_round(server.test_data)
+        com_hr, com_ndcg = server.test_commonality(server.test_data)
+        decouple_hr, decouple_ndcg, avg_item_personal = server.test_decouple(participants, server.test_data)
+
+        common_figure = plt.figure(figsize=(10, 10))
+        sns.heatmap(torch.abs(server_params['item_commonality.weight'][:100, :]))
+
+        average_figure = plt.figure(figsize=(10, 10))
+        sns.heatmap(torch.abs(avg_item_personal['item_personality.weight'][:100, :]))
+
+        first_client_personal_figure = plt.figure(figsize=(10, 10))
+        sns.heatmap(torch.abs(server.users[0]['model_dict']['item_personality.weight'][:100, :]))
+
+        first_client_common_figure = plt.figure(figsize=(10, 10))
+        sns.heatmap(torch.abs(server.users[0]['model_dict']['item_commonality.weight'][:100, :]))
+
         logging.info(
-            f"Round = {communication_round}, Loss = {round_loss:.6f} "
-            f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}")
+            f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}"
+            f"Commonality HR = {com_hr:.4f}, Commonality NDCG = {com_ndcg:.4f},"
+            f"Decouple HR = {decouple_hr:.4f}, Decouple NDCG = {decouple_ndcg:.4f}"
+        )
+
+        wandb.log({
+            'commonality.weight': wandb.Image(common_figure),
+            'avg_personal.weight': wandb.Image(average_figure),
+            'first_personal.weight': wandb.Image(first_client_personal_figure),
+            'first_commonality.weight': wandb.Image(first_client_common_figure),
+
+            'round_loss': round_loss,
+            'val_hr': val_hr, 'val_ndcg': val_ndcg,
+            'test_hr': test_hr, 'test_ndcg': test_ndcg,
+            'commonality_hr': com_hr, 'commonality_ndcg': com_ndcg,
+            'decouple_hr': decouple_hr, 'decouple_ndcg': decouple_ndcg},
+            step=communication_round)
 
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
@@ -40,17 +74,17 @@ def run(args):
         if not save_path.parent.exists():
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # torch.save(
-        #     {
-        #         "origin_params": origin_params,
-        #         "aggregate_params": server_params,
-        #         "updated_params": server.model.state_dict(),
-        #         "participants": participants,
-        #         "users": server.users,
-        #         "args": server.args,
-        #         "data": [server.train_data, server.val_data, server.test_data],
-        #         "metrics": [test_hr, test_ndcg]
-        #     }, save_path
-        # )
+        torch.save(
+            {
+                "origin_params": origin_params,
+                "aggregate_params": server_params,
+                "updated_params": server.model.state_dict(),
+                "participants": participants,
+                "users": server.users,
+                "args": server.args,
+                "data": [server.train_data, server.val_data, server.test_data],
+            }, save_path
+        )
 
         server.train_data = ray.get(train_data)
+        plt.close('all')

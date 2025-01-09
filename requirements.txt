@@ -2,7 +2,7 @@ matplotlib
 numpy
 pandas
 scikit-learn
-tensorboardx
+wandb
 torchvision
 torch
 requests

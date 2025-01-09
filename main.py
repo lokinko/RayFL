@@ -1,3 +1,4 @@
+import os
 import logging
 import importlib
 import traceback
@@ -6,8 +7,9 @@ load_dotenv()
 
 import ray
 import torch
+import wandb
 
-from algorithm import *
+import algorithm
 from utils.args import get_args
 from utils.utils import initLogging, seed_anything
 
@@ -23,6 +25,15 @@ if __name__ == "__main__":
         except Exception:
             logging.error(f"Record task configuration failed, {traceback.format_exc()}")
 
+    if not args['verbose']:
+        os.environ['WANDB_DISABLED'] = 'true'
+        wandb.init(project='pfl-rec', name=f"{args['method']}_{args['timestamp']}", config=args, mode='disabled')
+    else:
+        wandb.init(project='pfl-rec', name=f"{args['method']}_{args['timestamp']}", config=args, mode='online')
+
     ray.init(num_gpus=min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
+
     algorithm = importlib.import_module(f"algorithm.{args['method']}")
     algorithm.run(args)
+
+    wandb.finish()
