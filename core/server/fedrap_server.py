@@ -85,23 +85,28 @@ class FedRapServer(BaseServer):
 
 
     @torch.no_grad()
-    def aggregate(self, participants):
+    def aggregate(self, participants, keys):
         assert participants is not None, "No participants selected for aggregation."
 
-        samples = 0
-        global_item_community_weight = torch.zeros_like(self.model.item_commonality.weight)
+        samples, global_weights = 0, {}
+
         for user in tqdm(participants, desc="Aggregating", ncols=120):
-            global_item_community_weight += self.users[user]['model_dict']['item_commonality.weight'] \
-                                            * len(self.train_data[user]['train'])
+            for key in keys:
+                if key not in global_weights:
+                    global_weights[key] = torch.zeros_like(self.model.state_dict()[key])
+
+                global_weights[key] += self.users[user]['model_dict'][key] * len(self.train_data[user]['train'])
             samples += len(self.train_data[user]['train'])
-        global_item_community_weight /= samples
-        return {'item_commonality.weight': global_item_community_weight}
+
+        global_weights = {k: v / samples for k, v in global_weights.items()}
+        return global_weights
 
 
     def train_on_round(self, participants):
         results = self.pool.map_unordered(
             lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
+
         for result in tqdm(results, desc="Training", total=len(participants), ncols=120):
             user_id, client_model, client_loss = result
             self.users[user_id]['model_dict'].update(client_model.state_dict())
