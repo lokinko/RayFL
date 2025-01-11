@@ -29,6 +29,7 @@ def get_args():
     parser.add_argument('--num_gpus', type=int, default=torch.cuda.device_count())
 
     parser.add_argument('--verbose', type=bool, default=True)
+    parser.add_argument('--save', type=bool, default=False)
 
     args, unknown_args = parser.parse_known_args()
 

@@ -29,3 +29,12 @@ class PersonalizedCollaboFilterModel(torch.nn.Module):
         rating = self.logistic(logits)
 
         return rating, item_personality, item_commonality
+
+    def commonality_forward(self, item_indices):
+        if not isinstance(item_indices, torch.Tensor):
+            item_indices = torch.tensor(item_indices, dtype=torch.long)
+        item_commonality = self.item_commonality(item_indices)
+        logits = self.user_embedding(item_commonality)
+
+        rating = self.logistic(logits)
+        return rating, item_commonality

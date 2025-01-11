@@ -23,12 +23,14 @@ def run(args):
         round_loss = sum(sum(server.users[user_id]['loss']) / len(server.users[user_id]['loss']) for user_id in participants) / len(participants)
 
         origin_params = copy.deepcopy(server.model.state_dict())
-        server_params = server.aggregate(participants, ['item_commonality.weight'])
+        updated_params = server.aggregate(participants, ['item_commonality.weight'])
 
         for _, user in server.users.items():
-            user['model_dict'].update(server_params)
+            user['model_dict']['item_commonality.weight'] = updated_params['item_commonality.weight']
 
-        server.model.load_state_dict(server.model.state_dict() | server_params)
+        server_params = copy.deepcopy(server.model.state_dict())
+        server_params['item_commonality.weight'] = updated_params['item_commonality.weight'].data
+        server.model.load_state_dict(server_params)
 
         val_hr, val_ndcg = server.test_on_round(server.val_data)
         test_hr, test_ndcg = server.test_on_round(server.test_data)
@@ -36,7 +38,7 @@ def run(args):
         decouple_hr, decouple_ndcg, avg_item_personal = server.test_decouple(participants, server.test_data)
 
         common_figure = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(server_params['item_commonality.weight'][:100, :]))
+        sns.heatmap(torch.abs(updated_params['item_commonality.weight'][:100, :]))
 
         average_figure = plt.figure(figsize=(10, 10))
         sns.heatmap(torch.abs(avg_item_personal['item_personality.weight'][:100, :]))
@@ -74,17 +76,18 @@ def run(args):
         if not save_path.parent.exists():
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(
-            {
-                "origin_params": origin_params,
-                "aggregate_params": server_params,
-                "updated_params": server.model.state_dict(),
-                "participants": participants,
-                "users": server.users,
-                "args": server.args,
-                "data": [server.train_data, server.val_data, server.test_data],
-            }, save_path
-        )
+        if args['save']:
+            torch.save(
+                {
+                    "origin_params": origin_params,
+                    "aggregate_params": updated_params,
+                    "updated_params": copy.deepcopy(server.model.state_dict()),
+                    "participants": participants,
+                    "users": server.users,
+                    "args": server.args,
+                    "data": [server.train_data, server.val_data, server.test_data],
+                }, save_path
+            )
 
         server.train_data = ray.get(train_data)
         plt.close('all')

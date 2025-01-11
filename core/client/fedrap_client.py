@@ -72,18 +72,21 @@ class FedRapActor(BaseClient):
         initLogging(args['log_dir'] / f"client_{os.getpid()}.log", stream=False)
 
     def train(self, model, user_data):
-        client_model = copy.deepcopy(model)
         user, train_data = user_data[0], user_data[1]['train']
 
-        if user['model_dict'] is not None:
-            user_model_dict = client_model.state_dict() | user['model_dict']
-            client_model.load_state_dict(user_model_dict)
+        user_model = copy.deepcopy(model)
 
-        client_model = client_model.to(self.device)
-        optimizer = torch.optim.SGD([
-            {'params': client_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-            {'params': client_model.item_personality.parameters(), 'lr': self.args['lr_args']},
-            {'params': client_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
+        if user['model_dict'] is not None:
+            user_model.load_state_dict(user['model_dict'])
+            user_model.setItemCommonality(model.item_commonality)
+        else:
+            logging.info(f"User {user['user_id']} starts with a new model.")
+
+        user_model = user_model.to(self.device)
+        optimizer = torch.optim.Adam([
+            {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+            {'params': user_model.item_personality.parameters(), 'lr': self.args['lr_args']},
+            {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
         ], weight_decay=self.args['l2_regularization'])
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
@@ -96,7 +99,7 @@ class FedRapActor(BaseClient):
             shuffle=True
         )
 
-        client_model.train()
+        user_model.train()
         client_loss = []
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
@@ -104,7 +107,7 @@ class FedRapActor(BaseClient):
             for users, items, ratings in dataloader:
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
-                ratings_pred, items_personality, items_commonality = client_model(items)
+                ratings_pred, items_personality, items_commonality = user_model(items)
 
                 loss = loss_fn(ratings_pred.view(-1), ratings, items_personality, items_commonality)
                 loss.backward()
@@ -120,6 +123,6 @@ class FedRapActor(BaseClient):
                     client_loss[epoch - 1]) < self.args['tol']:
                 break
 
-        client_model.to('cpu')
+        user_model.to('cpu')
         logging.info(f"User {user['user_id']} training finished with loss = {client_loss}.")
-        return user['user_id'], client_model, client_loss
+        return user['user_id'], user_model, client_loss

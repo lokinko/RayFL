@@ -1,6 +1,7 @@
 import random
 
 import ray
+import numpy
 import pandas as pd
 
 from dataset.base_dataset import BaseDataset
@@ -19,11 +20,15 @@ class MovieLens(BaseDataset):
 
     def load_user_dataset(self, min_items, data_file):
         # origin data with all [uid, mid, rating, timestamp] samples.
-        data = pd.read_csv(
-            data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+        ratings = pd.read_csv(
+            data_file, sep='\t', header=None, usecols=[0, 1, 2], names=['uid', 'mid', 'rating'], engine='python')
+
+        rank = ratings[['mid']].drop_duplicates().reindex()
+        rank['timestamp'] = np.arange((len(rank)))
+        ratings = pd.merge(ratings, rank, on=['mid'], how='left')
 
         # filter the user with num_samples < min_items
-        ratings = datasetFilter(data, min_items=min_items)
+        ratings = datasetFilter(ratings, min_items=min_items)
         self.ratings = reindex(ratings)
 
         # binarize the ratings, positive click = 1
