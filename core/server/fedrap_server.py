@@ -8,27 +8,28 @@ from tqdm import tqdm
 
 from core.server.base_server import BaseServer
 from core.client.fedrap_client import FedRapActor
-from core.model.model.build_model import build_model
 from dataset import MovieLens
+from model.recommendation import PersonalUserItemInteraction
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 special_args = {
-    'model': 'cf',
-    'num_negatives': 4,
+    # dataset arguments
     'item_hidden_dim': 32,
     'negatives_candidates': 99,
+    'num_negatives': 4,
 
-    'top_k': 10,
-    'regular': 'l1',
-    'lr_network': 0.5,
-    'lr_args': 1,
-    'l2_regularization': 1e-4,
-    'lambda': 0.01,
-    'mu': 0.01,
-    'vary_param': 'tanh',
+    # training arguments
     'decay_rate': 0.97,
+    'lambda': 0.01,
+    'l2_regularization': 1e-4,
+    'lr_args': 1,
+    'lr_network': 0.5,
+    'mu': 0.01,
+    'regular': 'l1',
     'tol': 0.0001,
+    'top_k': 10,
+    'vary_param': 'tanh',
 }
 
 class FedRapServer(BaseServer):
@@ -38,36 +39,39 @@ class FedRapServer(BaseServer):
         seed_anything(seed=self.args['seed'])
         initLogging(args['log_dir'] / "server.log", stream=False)
 
+
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
-        self.model = build_model(self.args)
+        self.global_model = PersonalUserItemInteraction(self.args)
 
-        for user in self.train_data:
-            self.users[user] = {
-                'user_id': user,
-                'model_dict': copy.deepcopy(self.model.state_dict())}
+        for user in range(int(self.args['num_users'])):
+            self.user_context[user] = {
+                'state_dict': copy.deepcopy(self.global_model.state_dict()),
+                'loss': [],
+            }
 
-        self.pool = ray.util.ActorPool([
-            FedRapActor.options(
-                num_cpus=0.2, num_gpus=self.args['num_gpus'] / float(self.args['num_workers'])).remote(self.args)
-                for _ in range(self.args['num_workers'])])
+        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
+        self.ray_actor_pool = ray.util.ActorPool([
+            FedRapActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
+            for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
+
 
     @measure_time()
     def load_dataset(self):
         if self.args['dataset'] == 'movielens-1m':
-            self.args['num_users'], self.args['num_items'], self.args['min_items'] = 6040, 3706, 10
-
+            self.args['min_items'] = 10
             dataset = MovieLens.remote(self.args)
-            ray.get(dataset.load_user_dataset.remote(
-                self.args['min_items'], self.args['work_dir']/'data/movielens-1m/ratings.dat'))
+            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
+                self.args['min_items'], self.args['data_dir'] / 'movielens-1m/ratings.dat'))
 
         elif self.args['dataset'] == 'movielens-100k':
+            self.args['min_items'] = 10
             dataset = MovieLens.remote(self.args)
-            ray.get(dataset.load_user_dataset(
-                self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.dat'))
+            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset(
+                self.args['min_items'], self.args['data_dir'] / 'movielens-100k/ratings.dat'))
 
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
@@ -76,7 +80,7 @@ class FedRapServer(BaseServer):
 
     def select_participants(self):
         participants = np.random.choice(
-            list(self.users), int(len(self.users) * self.args['client_sample_ratio']), replace=False)
+            list(self.user_context), int(len(self.user_context) * self.args['client_sample_ratio']), replace=False)
         return participants
 
 
@@ -86,29 +90,32 @@ class FedRapServer(BaseServer):
 
         samples, global_weights = 0, {}
 
-        for user in tqdm(participants, desc="Aggregating", ncols=120):
+        iter_participants = tqdm(participants, ncols=120)
+        for user in iter_participants:
             for key in keys:
                 if key not in global_weights:
-                    global_weights[key] = torch.zeros_like(self.model.state_dict()[key])
+                    global_weights[key] = torch.zeros_like(self.global_model.state_dict()[key])
 
-                global_weights[key] += self.users[user]['model_dict'][key] * len(self.train_data[user]['train'])
-            samples += len(self.train_data[user]['train'])
+                global_weights[key] += self.user_context[user]['state_dict'][key]
+            samples += 1
+            iter_participants.set_description(f"Aggregating {samples} participants")
 
         global_weights = {k: v / samples for k, v in global_weights.items()}
         return global_weights
 
 
     def train_on_round(self, participants):
-        results = self.pool.map_unordered(
-            lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
-            [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
+        results = self.ray_actor_pool.map_unordered(
+            lambda a, v: a.train.remote(copy.deepcopy(self.global_model), v), \
+            [(self.user_context[user_id], self.train_data[user_id]) for user_id in participants])
 
         results = tqdm(results, total=len(participants), ncols=120)
         for result in results:
             user_id, client_model, client_loss = result
-            self.users[user_id]['model_dict'] = copy.deepcopy(client_model.state_dict())
-            self.users[user_id]['loss'] = client_loss
+            self.user_context[user_id]['state_dict'] = copy.deepcopy(client_model.state_dict())
+            self.user_context[user_id]['loss'] = client_loss
             results.set_description(f"Training loss: {client_loss[-1]:.4f}")
+
 
     @torch.no_grad()
     def test_on_round(self, user_ratings: dict):
@@ -116,12 +123,14 @@ class FedRapServer(BaseServer):
         negative_scores = None
         test_users, test_items, negative_users, negative_items = None, None, None, None
 
-        for user, user_data in tqdm(user_ratings.items(), desc="Testing", ncols=120):
+        iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
+        for user, user_data in iter_user_ratings:
             # load each user's mlp parameters.
-            user_model = copy.deepcopy(self.model)
+            user_model = copy.deepcopy(self.global_model)
 
-            user_param_dict = self.users[user]['model_dict']
-            user_param_dict['item_commonality.weight'] = copy.deepcopy(self.model.state_dict()['item_commonality.weight'])
+            user_param_dict = self.user_context[user]['state_dict']
+            user_param_dict['item_commonality.weight'] = copy.deepcopy(
+                    self.global_model.state_dict()['item_commonality.weight'])
             user_model.load_state_dict(user_param_dict)
 
             user_model.eval()
@@ -160,15 +169,16 @@ class FedRapServer(BaseServer):
         test_scores = None
         negative_scores = None
         test_users, test_items, negative_users, negative_items = None, None, None, None
+        item_commonality = copy.deepcopy(self.global_model.item_commonality)
 
-        for user, user_data in tqdm(user_ratings.items(), desc="commonality testing", ncols=120):
-            item_commonality = copy.deepcopy(self.model.item_commonality)
+        iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
+        for user, user_data in iter_user_ratings:
 
             # load each user's mlp parameters.
-            user_model = copy.deepcopy(self.model)
+            user_model = copy.deepcopy(self.global_model)
 
-            user_param_dict = self.users[user]['model_dict']
-            user_model.load_state_dict(user_param_dict)
+            user_state_dict = copy.deepcopy(self.user_context[user]['state_dict'])
+            user_model.load_state_dict(user_state_dict)
             user_model.setItemCommonality(item_commonality)
 
             user_model.eval()
@@ -213,12 +223,12 @@ class FedRapServer(BaseServer):
 
         for user, user_data in tqdm(user_ratings.items(), desc="commonality testing", ncols=120):
             # load each user's mlp parameters.
-            user_model = copy.deepcopy(self.model)
+            user_model = copy.deepcopy(self.global_model)
 
-            user_param_dict = copy.deepcopy(self.users[user]['model_dict'])
-            user_param_dict['item_commonality.weight'] = copy.deepcopy(self.model.state_dict()['item_commonality.weight']) \
+            user_state_dict = copy.deepcopy(self.user_context[user]['state_dict'])
+            user_state_dict['item_commonality.weight'] = copy.deepcopy(self.global_model.state_dict()['item_commonality.weight']) \
                                                         + avg_item_personal['item_personality.weight']
-            user_model.load_state_dict(user_param_dict)
+            user_model.load_state_dict(user_state_dict)
 
             user_model.eval()
 

@@ -72,15 +72,10 @@ class FedRapActor(BaseClient):
         initLogging(args['log_dir'] / f"client_{os.getpid()}.log", stream=False)
 
     def train(self, model, user_data):
-        user, train_data = user_data[0], user_data[1]['train']
+        user_context, train_data = user_data[0], user_data[1]
 
         user_model = copy.deepcopy(model)
-
-        if user['model_dict'] is not None:
-            user_model.load_state_dict(user['model_dict'])
-            user_model.setItemCommonality(model.item_commonality)
-        else:
-            logging.info(f"User {user['user_id']} starts with a new model.")
+        user_model.load_state_dict(user_context['state_dict'])
 
         user_model = user_model.to(self.device)
         optimizer = torch.optim.Adam([
@@ -100,7 +95,7 @@ class FedRapActor(BaseClient):
         )
 
         user_model.train()
-        client_loss = []
+        training_loss = []
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             loss_fn = FedRapLoss(self.args)
@@ -108,6 +103,8 @@ class FedRapActor(BaseClient):
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
                 ratings_pred, items_personality, items_commonality = user_model(items)
+                logging.info(
+                    f"ratings_pred: {ratings_pred}, items_personality: {items_personality}, items_commonality: {items_commonality}")
 
                 loss = loss_fn(ratings_pred.view(-1), ratings, items_personality, items_commonality)
                 loss.backward()
@@ -116,13 +113,12 @@ class FedRapActor(BaseClient):
 
                 epoch_loss += loss.item() * len(users)
                 samples += len(users)
-            client_loss.append(epoch_loss / samples)
+            training_loss.append(epoch_loss / samples)
 
             # check convergence
-            if epoch > 0 and abs(client_loss[epoch] - client_loss[epoch - 1]) / abs(
-                    client_loss[epoch - 1]) < self.args['tol']:
+            if epoch > 0 and abs(training_loss[epoch] - training_loss[epoch - 1]) / abs(
+                    training_loss[epoch - 1]) < self.args['tol']:
                 break
 
         user_model.to('cpu')
-        logging.info(f"User {user['user_id']} training finished with loss = {client_loss}.")
-        return user['user_id'], user_model, client_loss
+        return user_context['user_id'], user_model, training_loss

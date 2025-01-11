@@ -20,17 +20,18 @@ def run(args):
 
         train_data = server.dataset.sample_train_data.remote()
         server.train_on_round(participants)
-        round_loss = sum(sum(server.users[user_id]['loss']) / len(server.users[user_id]['loss']) for user_id in participants) / len(participants)
+        round_loss = sum(sum(server.user_context[user_id]['loss']) / len(server.user_context[user_id]['loss']) for user_id in participants) / len(participants)
 
-        origin_params = copy.deepcopy(server.model.state_dict())
+        origin_params = copy.deepcopy(server.global_model.state_dict())
         updated_params = server.aggregate(participants, ['item_commonality.weight'])
 
-        for _, user in server.users.items():
-            user['model_dict']['item_commonality.weight'] = updated_params['item_commonality.weight']
+        for user in server.user_context:
+            server.user_context[user]['state_dict']['item_commonality.weight'] = copy.deepcopy(
+                                updated_params['item_commonality.weight'])
 
-        server_params = copy.deepcopy(server.model.state_dict())
+        server_params = copy.deepcopy(server.global_model.state_dict())
         server_params['item_commonality.weight'] = updated_params['item_commonality.weight'].data
-        server.model.load_state_dict(server_params)
+        server.global_model.load_state_dict(server_params)
 
         val_hr, val_ndcg = server.test_on_round(server.val_data)
         test_hr, test_ndcg = server.test_on_round(server.test_data)
@@ -44,10 +45,10 @@ def run(args):
         sns.heatmap(torch.abs(avg_item_personal['item_personality.weight'][:100, :]))
 
         first_client_personal_figure = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(server.users[0]['model_dict']['item_personality.weight'][:100, :]))
+        sns.heatmap(torch.abs(server.user_context[0]['state_dict']['item_personality.weight'][:100, :]))
 
         first_client_common_figure = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(server.users[0]['model_dict']['item_commonality.weight'][:100, :]))
+        sns.heatmap(torch.abs(server.user_context[0]['state_dict']['item_commonality.weight'][:100, :]))
 
         logging.info(
             f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}"
@@ -81,9 +82,9 @@ def run(args):
                 {
                     "origin_params": origin_params,
                     "aggregate_params": updated_params,
-                    "updated_params": copy.deepcopy(server.model.state_dict()),
+                    "updated_params": copy.deepcopy(server.global_model.state_dict()),
                     "participants": participants,
-                    "users": server.users,
+                    "users": server.user_context,
                     "args": server.args,
                     "data": [server.train_data, server.val_data, server.test_data],
                 }, save_path

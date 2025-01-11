@@ -12,9 +12,10 @@ class BaseServer(ABC):
         self.train_data = None
         self.val_data = None
         self.test_data = None
-        self.model = None
-        self.users = {}
-        self.pool = None
+
+        self.global_model = None
+        self.user_context = {}
+        self.ray_actor_pool = None
         self.metrics = None
 
     @abstractmethod
