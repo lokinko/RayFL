@@ -40,6 +40,7 @@ def get_args():
 
     # set the working directory
     args['work_dir'] = work_dir
+    args['data_dur'] = work_dir / 'dataset/data'
 
     # set the log directory
     args['log_dir'] = Path(
