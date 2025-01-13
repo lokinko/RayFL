@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from dataset.base_dataset import BaseDataset
 
-class MovieLens(BaseDataset):
+class Amazon(BaseDataset):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.ratings = None
@@ -17,8 +17,6 @@ class MovieLens(BaseDataset):
         data = pd.read_csv(
             data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
 
-        # data = pd.read_csv(
-        #     data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
         # filter the user with num_samples < min_items
         ratings = self.datasetFilter(data, min_items=min_items)
         self.ratings = self.reindex(ratings)

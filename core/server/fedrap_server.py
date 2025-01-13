@@ -17,7 +17,7 @@ from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 special_args = {
-    'model': 'cf',
+    'model': 'pcf',
     'num_users': 943,
     'num_items': 1682,
     'min_items': 10,

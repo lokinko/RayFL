@@ -10,7 +10,7 @@ def run(args):
     server.allocate_init_status()
     logging.info(f"Creates {args['method']} server successfully.")
 
-    for communication_round in range(10):
+    for communication_round in range(50): #30
         
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
@@ -19,31 +19,35 @@ def run(args):
         server.train_decoder_on_round(participants)
         round_decoder_loss = sum([sum(server.users[user]['decoder_loss'])/len(server.users[user]['decoder_loss']) for user in server.users]) / len(server.users)
         server_decoder_params = server.aggregate_decoder(participants)
-        
-        for _, user in server.users.items():
-            user['decoder_dict'].update(server_decoder_params)
+
+        # if communication_round != 49:
+        #     for _, user in server.users.items():
+        #         user['decoder_dict'].update(server_decoder_params)
 
         server.decoder.load_state_dict(server.decoder.state_dict() | server_decoder_params)
 
-        save_path = server.args['log_dir'] / f"{communication_round}" / f"decoder_{communication_round}.pt"
+        # save_path = server.args['log_dir'] / f"{communication_round}" / f"decoder_{communication_round}.pt"
 
-        if not save_path.parent.exists():
-            save_path.parent.mkdir(parents=True, exist_ok=True)
+        # if not save_path.parent.exists():
+        #     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(
-            {
-                "aggregate_params": server_decoder_params,
-                "updated_params": server.decoder.state_dict(),
-                "users": server.users,
-                "args": server.args,
-                "data": [server.train_data, server.val_data, server.test_data],
-            }, save_path
-        )
+        # torch.save(
+        #     {
+        #         "aggregate_params": server_decoder_params,
+        #         "updated_params": server.decoder.state_dict(),
+        #         "users": server.users,
+        #         "args": server.args,
+        #         "data": [server.train_data, server.val_data, server.test_data],
+        #     }, save_path
+        # )
 
     # generate data
     participants = server.select_participants()
     server.augment_dataset(participants)
-    server.test_data = server.dataset.test_data
+
+    # server.dataset.negatives = server.dataset._sample_negative_candidates(server.dataset.ratings, server.dataset.args['negatives_candidates'])
+
+    # server.test_data = server.dataset.test_data
 
     for communication_round in range(args['num_rounds']):
         server.train_data = server.dataset.sample_train_data()
@@ -70,20 +74,20 @@ def run(args):
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
 
-        save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
+        # save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
 
-        if not save_path.parent.exists():
-            save_path.parent.mkdir(parents=True, exist_ok=True)
+        # if not save_path.parent.exists():
+        #     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(
-            {
-                "origin_params": origin_params,
-                "aggregate_params": server_params,
-                "updated_params": server.model.state_dict(),
-                "participants": participants,
-                "users": server.users,
-                "args": server.args,
-                "data": [server.train_data, server.val_data, server.test_data],
-                "metrics": [hr, ndcg]
-            }, save_path
-        )
+        # torch.save(
+        #     {
+        #         "origin_params": origin_params,
+        #         "aggregate_params": server_params,
+        #         "updated_params": server.model.state_dict(),
+        #         "participants": participants,
+        #         "users": server.users,
+        #         "args": server.args,
+        #         "data": [server.train_data, server.val_data, server.test_data],
+        #         "metrics": [hr, ndcg]
+        #     }, save_path
+        # )

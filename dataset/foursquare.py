@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from dataset.base_dataset import BaseDataset
 
-class MovieLens(BaseDataset):
+class Foursquare(BaseDataset):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.ratings = None
@@ -17,8 +17,6 @@ class MovieLens(BaseDataset):
         data = pd.read_csv(
             data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
 
-        # data = pd.read_csv(
-        #     data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
         # filter the user with num_samples < min_items
         ratings = self.datasetFilter(data, min_items=min_items)
         self.ratings = self.reindex(ratings)
@@ -45,5 +43,37 @@ class MovieLens(BaseDataset):
         self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings)
 
         return None
+    
+    def reindex(self, ratings):
+        # Reindex user id and item id
+        user_id = ratings[['uid']].drop_duplicates().reindex()
+        user_id['userId'] = np.arange(len(user_id))
+        ratings = pd.merge(ratings, user_id, on=['uid'], how='left')
+
+        item_id = ratings[['mid']].drop_duplicates()
+        item_id['itemId'] = np.arange(len(item_id))
+        ratings = pd.merge(ratings, item_id, on=['mid'], how='left')
+
+        datetime_format = '%a %b %d %H:%M:%S %z %Y'
+        ratings['timestamp'] = pd.to_datetime(ratings['timestamp'], format=datetime_format)
+
+        # ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
+        ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by=['userId', 'timestamp'], ascending=True)
+
+        return ratings
+
+    def _split_loo(self, ratings):
+        ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
+        del ratings['timestamp']
+        
+        test = ratings[ratings['rank_latest'] == 1]
+        val = ratings[ratings['rank_latest'] == 2]
+        train = ratings[ratings['rank_latest'] > 2]
+
+        assert train['userId'].nunique() == test['userId'].nunique() == val['userId'].nunique()
+        assert len(train) + len(test) + len(val) == len(ratings)
+
+        return train[['userId', 'itemId', 'rating']], val[['userId', 'itemId', 'rating']], test[
+            ['userId', 'itemId', 'rating']]
 
     

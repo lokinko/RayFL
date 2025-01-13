@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 
 METHOD = ['fedncf', 'fedrap', 'fedaug']
-DATASET = ['movieLens-1m', 'movielens-100k']
+DATASET = ['movielens-1m', 'movielens-100k', 'lastfm-2k', 'amazon', 'foursquare']
 
 work_dir = Path(__file__).resolve().parents[1]
 
@@ -30,7 +30,23 @@ def get_args():
     args, unknown_args = parser.parse_known_args()
 
     args = vars(args)
-
+    # set special 
+    if args['dataset'] == 'movielens-1m':
+        args['num_users'] = 6040
+        args['num_items'] = 3706
+    elif args['dataset'] == 'movielens-100k':
+        args['num_users'] = 943
+        args['num_items'] = 1682
+    elif args['dataset'] == 'lastfm-2k':
+        args['num_users'] = 1600
+        args['num_items'] = 12454
+    elif args['dataset'] == 'amazon':
+        args['num_users'] = 8072
+        args['num_items'] = 11830
+    elif args['dataset'] == 'foursquare':
+        args['num_users'] = 1083
+        args['num_items'] = 38333
+        
     # set the running timestamp
     args['timestamp'] = time.strftime('%m%d%H%M%S', time.localtime(time.time()))
 

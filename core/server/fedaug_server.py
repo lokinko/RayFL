@@ -12,12 +12,12 @@ from tqdm import tqdm
 from core.server.base_server import BaseServer
 from core.client.fedaug_client import FedAugActor
 from core.model.model.build_model import build_model
-from dataset import MovieLens
+from dataset import MovieLens, Lastfm, Amazon, Foursquare
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 special_args = {
-    'model': 'cf',
+    'model': 'pcf',
     'num_users': 943,
     'num_items': 1682,
     'min_items': 10,
@@ -69,6 +69,18 @@ class FedAugServer(BaseServer):
         elif self.args['dataset'] == 'movielens-100k':
             dataset = MovieLens(self.args)
             dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.data')
+        
+        elif self.args['dataset'] == 'lastfm-2k':
+            dataset = Lastfm(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/lastfm-2k/ratings.dat')
+
+        elif self.args['dataset'] == 'amazon':
+            dataset = Amazon(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/amazon/ratings.dat')
+        
+        elif self.args['dataset'] == 'foursquare':
+            dataset = Foursquare(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/foursquare/ratings.dat')
 
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
@@ -86,8 +98,8 @@ class FedAugServer(BaseServer):
 
         # Initialize a dictionary to hold aggregated weights, excluding 'condational_embedding.weight'
         global_decoder_state = {}
-        # excluded_param = 'condational_embedding.weight'
-        excluded_param = 'none'
+        excluded_param = 'condational_embedding.weight'
+        # excluded_param = 'none'
 
         for param_name, param in self.decoder.state_dict().items():
             if param_name != excluded_param:
@@ -141,7 +153,6 @@ class FedAugServer(BaseServer):
     def augment_dataset(self, participants):
         new_user_ratings_dfs = self.pool.map_unordered(
             lambda a, v: a.augment_data.remote(copy.deepcopy(self.decoder), v), \
-            # [self.users[user_id] for user_id in participants])
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for new_user_ratings_df in tqdm(new_user_ratings_dfs, desc="Augmenting", total=len(participants)):
             self.dataset.train_ratings = pd.concat([self.dataset.train_ratings, new_user_ratings_df], ignore_index=True)
@@ -163,10 +174,12 @@ class FedAugServer(BaseServer):
 
             user_model.eval()
 
-            # test_score, _ = user_model(user_data['positive_items'])
-            # negative_score, _ = user_model(user_data['negative_items'])
-            test_score, _, _ = user_model(user_data['positive_items'])
-            negative_score, _, _ = user_model(user_data['negative_items'])
+            if self.args['model'] == 'cf':
+                test_score, _ = user_model(user_data['positive_items'])
+                negative_score, _ = user_model(user_data['negative_items'])
+            elif self.args['model'] == 'pcf':
+                test_score, _, _ = user_model(user_data['positive_items'])
+                negative_score, _, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score

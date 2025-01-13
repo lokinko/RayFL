@@ -48,20 +48,20 @@ def run(args):
         #     server.args['lambda'] = 1 / (communication_round + 1) * server.args['lambda']
         #     server.args['mu'] = 1 / (communication_round + 1) * server.args['mu']
 
-        save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
+        # save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
 
-        if not save_path.parent.exists():
-            save_path.parent.mkdir(parents=True, exist_ok=True)
+        # if not save_path.parent.exists():
+        #     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(
-            {
-                "origin_params": origin_params,
-                "aggregate_params": server_params,
-                "updated_params": server.model.state_dict(),
-                "participants": participants,
-                "users": server.users,
-                "args": server.args,
-                "data": [server.train_data, server.val_data, server.test_data],
-                "metrics": [hr, ndcg]
-            }, save_path
-        )
+        # torch.save(
+        #     {
+        #         "origin_params": origin_params,
+        #         "aggregate_params": server_params,
+        #         "updated_params": server.model.state_dict(),
+        #         "participants": participants,
+        #         "users": server.users,
+        #         "args": server.args,
+        #         "data": [server.train_data, server.val_data, server.test_data],
+        #         "metrics": [hr, ndcg]
+        #     }, save_path
+        # )

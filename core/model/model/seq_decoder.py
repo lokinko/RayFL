@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch
 
 class CustomGPT2LMHeadModel(GPT2LMHeadModel):
-    def __init__(self, config, condational_method):
+    def __init__(self, config, condational_method, num_users):
         super().__init__(config)
         self.condational_method = condational_method
-        self.condational_embedding = nn.Embedding(1000, config.n_embd)
+        self.condational_embedding = nn.Embedding(num_users, config.n_embd)
         # 初始化新参数
         self.init_weights()
         
