@@ -1,14 +1,15 @@
+import logging
+import traceback
+
 from abc import ABC, abstractmethod
 
-base_args = {}
 '''
 method specific arguments should be provieded with dict format.
 '''
 
-
 class BaseServer(ABC):
-    def __init__(self, args) -> None:
-        self.args = args
+    def __init__(self, args, special_args) -> None:
+        self.args = self.merge_args(args, special_args)
         self.train_data = None
         self.val_data = None
         self.test_data = None
@@ -49,3 +50,26 @@ class BaseServer(ABC):
     @abstractmethod
     def test_on_round(self, model_params, data):
         pass
+
+    def merge_args(self, args, special_args):
+        if special_args is None:
+            return args
+
+        if "unknown" in args:
+            for key in special_args:
+                if key in args['unknown']:
+                    args[key] = type(special_args[key])(args['unknown'][key])
+                    del args['unknown'][key]
+                else:
+                    args[key] = special_args[key]
+        else:
+            args = special_args | args
+
+        logging.info(f"{'='*15} Task Configuration Below {'='*15}")
+        for key in sorted(args):
+            try:
+                logging.info(f"{key:<25}: {str(args[key]):<25} ({type(args[key])})")
+            except Exception:
+                logging.error(f"Record task configuration failed, {traceback.format_exc()}")
+
+        return args

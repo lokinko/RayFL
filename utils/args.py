@@ -29,7 +29,7 @@ def get_args():
     parser.add_argument('--num_gpus', type=int, default=torch.cuda.device_count())
 
     parser.add_argument('--verbose', type=bool, default=True)
-    parser.add_argument('--save', type=bool, default=False)
+    parser.add_argument('--save', action='store_true', default=False)
 
     args, unknown_args = parser.parse_known_args()
 
@@ -40,7 +40,7 @@ def get_args():
 
     # set the working directory
     args['work_dir'] = work_dir
-    args['data_dur'] = work_dir / 'dataset/data'
+    args['data_dir'] = work_dir / 'dataset/data'
 
     # set the log directory
     args['log_dir'] = Path(
@@ -49,4 +49,5 @@ def get_args():
     if not args['log_dir'].exists():
         args['log_dir'].mkdir(parents=True, exist_ok=True)
 
-    return args, unknown_args
+    args['unknown'] = {k[2:]: v for k, v in zip(unknown_args[::2], unknown_args[1::2])} if unknown_args is not None else None
+    return args

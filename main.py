@@ -14,22 +14,15 @@ from utils.args import get_args
 from utils.utils import initLogging, seed_anything
 
 if __name__ == "__main__":
-    args, _ = get_args()
+    args = get_args()
     seed_anything(seed=args['seed'])
     initLogging(args['log_dir'] / "main.log")
 
-    logging.info(f"{'='*15} Task Configuration Below {'='*15}")
-    for arg in args:
-        try:
-            logging.info(f"{arg:<25}: {str(args[arg]):<25}")
-        except Exception:
-            logging.error(f"Record task configuration failed, {traceback.format_exc()}")
-
-    if not args['verbose']:
-        os.environ['WANDB_DISABLED'] = 'true'
-        wandb.init(project='pfl-rec', name=f"{args['method']}_{args['timestamp']}", config=args, mode='disabled')
+    wandb_name = f"{args['method']}_{args['dataset']}_{args['timestamp']}"
+    if args['verbose']:
+        wandb.init(project='pfl-rec', name=wandb_name, config=args, mode='online')
     else:
-        wandb.init(project='pfl-rec', name=f"{args['method']}_{args['timestamp']}", config=args, mode='online')
+        wandb.init(project='pfl-rec', name=wandb_name, config=args, mode='disabled')
 
     ray.init(num_gpus=min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
 

@@ -30,28 +30,21 @@ class FedRapLoss(torch.nn.Module):
         self.crit = torch.nn.BCELoss()
         self.independency = torch.nn.MSELoss()
 
-        if self.args['regular'] == 'l2':
-            self.reg = torch.nn.MSELoss()
-        elif self.args['regular'] == 'l1':
+        if self.args['regular'] == 'l1':
             self.reg = torch.nn.L1Loss()
         else:
             self.reg = torch.nn.MSELoss()
 
     def forward(self, ratings_pred, ratings, item_personality, item_commonality):
-        if self.args['regular'] == 'l2':
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'l1':
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'none':
+        if self.args['regular'] == 'none':
             self.args['mu'] = 0
-            dummy_target = item_commonality
-            third = self.reg(item_commonality, dummy_target)
-        elif self.args['regular'] == 'nuc':
+
+        if self.args['regular'] == 'nuc':
             third = torch.norm(item_commonality, p='nuc')
+
         elif self.args['regular'] == 'inf':
             third = torch.norm(item_commonality, p=float('inf'))
+
         else:
             dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
             third = self.reg(item_commonality, dummy_target)
@@ -98,13 +91,13 @@ class FedRapActor(BaseClient):
         training_loss = []
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
-            loss_fn = FedRapLoss(self.args)
             for users, items, ratings in dataloader:
+                loss_fn = FedRapLoss(self.args)
+
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
+
                 optimizer.zero_grad()
                 ratings_pred, items_personality, items_commonality = user_model(items)
-                logging.info(
-                    f"ratings_pred: {ratings_pred}, items_personality: {items_personality}, items_commonality: {items_commonality}")
 
                 loss = loss_fn(ratings_pred.view(-1), ratings, items_personality, items_commonality)
                 loss.backward()

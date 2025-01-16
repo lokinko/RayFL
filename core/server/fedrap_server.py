@@ -8,37 +8,16 @@ from tqdm import tqdm
 
 from core.server.base_server import BaseServer
 from core.client.fedrap_client import FedRapActor
-from dataset import MovieLens
+from dataset.movielens import MovieLens
 from model.recommendation import PersonalUserItemInteraction
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
-special_args = {
-    # dataset arguments
-    'item_hidden_dim': 32,
-    'negatives_candidates': 99,
-    'num_negatives': 4,
-
-    # training arguments
-    'decay_rate': 0.97,
-    'lambda': 0.01,
-    'l2_regularization': 1e-4,
-    'lr_args': 1,
-    'lr_network': 0.5,
-    'mu': 0.01,
-    'regular': 'l1',
-    'tol': 0.0001,
-    'top_k': 10,
-    'vary_param': 'tanh',
-}
-
 class FedRapServer(BaseServer):
-    def __init__(self, args) -> None:
-        super().__init__(args)
-        self.args = special_args | self.args
+    def __init__(self, args, special_args) -> None:
+        super().__init__(args, special_args)
         seed_anything(seed=self.args['seed'])
         initLogging(args['log_dir'] / "server.log", stream=False)
-
 
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
@@ -48,11 +27,12 @@ class FedRapServer(BaseServer):
 
         for user in range(int(self.args['num_users'])):
             self.user_context[user] = {
+                'user_id': user,
                 'state_dict': copy.deepcopy(self.global_model.state_dict()),
                 'loss': [],
             }
 
-        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
+        actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_pool = ray.util.ActorPool([
             FedRapActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])
@@ -126,6 +106,7 @@ class FedRapServer(BaseServer):
         iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
         for user, user_data in iter_user_ratings:
             # load each user's mlp parameters.
+            iter_user_ratings.set_description(f"Testing user {user}")
             user_model = copy.deepcopy(self.global_model)
 
             user_param_dict = self.user_context[user]['state_dict']
@@ -173,6 +154,7 @@ class FedRapServer(BaseServer):
 
         iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
         for user, user_data in iter_user_ratings:
+            iter_user_ratings.set_description(f"Commonality testing user {user}")
 
             # load each user's mlp parameters.
             user_model = copy.deepcopy(self.global_model)
