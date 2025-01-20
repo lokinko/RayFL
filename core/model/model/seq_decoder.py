@@ -7,8 +7,11 @@ class CustomGPT2LMHeadModel(GPT2LMHeadModel):
         super().__init__(config)
         self.condational_method = condational_method
         self.condational_embedding = nn.Embedding(num_users, config.n_embd)
+        # self.transformer.wpe.weight.requires_grad = False
+
         # 初始化新参数
         self.init_weights()
+        # self.transformer.wpe.weight.data.zero_() 
         
     def forward(
         self,
@@ -60,7 +63,7 @@ class CustomGPT2LMHeadModel(GPT2LMHeadModel):
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            # position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,  # 使用修改后的嵌入
             labels=labels,

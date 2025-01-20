@@ -2,7 +2,7 @@ import copy
 import logging
 
 import torch
-
+import wandb
 from core.server.fedncf_server import FedNcfServer
 
 def run(args):
@@ -30,9 +30,13 @@ def run(args):
 
         hr, ndcg = server.test_on_round(server.test_data)
         logging.info(f"Round = {communication_round}, Loss = {round_loss}, HR = {hr}, NDCG = {ndcg}")
+        wandb.log({'round_loss': round_loss,
+                    'HR': hr,
+                    'NDCG': ndcg},
+                    step=communication_round)
 
-        server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
-        server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
+        # server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
+        # server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
 
         # save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
 

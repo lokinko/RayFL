@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-METHOD = ['fedncf', 'fedrap', 'fedaug']
+METHOD = ['fedncf', 'fedrap', 'fedaug', 'fedbert']
 DATASET = ['movielens-1m', 'movielens-100k', 'lastfm-2k', 'amazon', 'foursquare']
 
 work_dir = Path(__file__).resolve().parents[1]
@@ -17,8 +17,9 @@ work_dir = Path(__file__).resolve().parents[1]
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-seed', type=int, default=0)
-    parser.add_argument('-method', type=str, choices=METHOD, default="fedaug")
+    parser.add_argument('-method', type=str, choices=METHOD, default="fedbert")
     parser.add_argument('-data', "--dataset", choices=DATASET, type=str, default="movielens-100k")
+    parser.add_argument('-min_items', type=int, default=10)
     parser.add_argument('-num_rounds', type=int, default=100)
     parser.add_argument('-lr', type=float, default=0.01)
     parser.add_argument('-cr', '--client_sample_ratio', type=float, default=1.0)
@@ -26,7 +27,19 @@ def get_args():
     parser.add_argument('--local_epoch', type=int, default=5)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=2)
-
+    parser.add_argument('--num_gpus', type=int, default=torch.cuda.device_count())
+    parser.add_argument('--verbose', type=bool, default=True)
+    parser.add_argument('--item_hidden_dim', type=int, default=32)
+    
+    # BERT
+    parser.add_argument('--bert_max_len', type=int, default=100, help='Length of sequence for bert')
+    parser.add_argument('--num_items', type=int, default=1682, help='Number of total items')
+    parser.add_argument('--bert_hidden_units', type=int, default=32, help='Size of hidden vectors (d_model)')
+    parser.add_argument('--bert_num_blocks', type=int, default=1, help='Number of transformer layers')
+    parser.add_argument('--bert_num_heads', type=int, default=1, help='Number of heads for multi-attention')
+    parser.add_argument('--bert_dropout', type=float, default=0.1, help='Dropout probability to use throughout the model')
+    parser.add_argument('--bert_mask_prob', type=float, default=0.15, help='Probability for masking items in the training sequence')
+    parser.add_argument('--per_head', type=bool, default=False)
     args, unknown_args = parser.parse_known_args()
 
     args = vars(args)

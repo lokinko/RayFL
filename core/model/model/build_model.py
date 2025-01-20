@@ -2,6 +2,7 @@ import torch
 
 from core.model.model.collaborate_filter import PersonalizedCollaboFilterModel, CollaboFilterModel
 from core.model.model.seq_decoder import CustomGPT2LMHeadModel
+from core.model.model.bert import BERTModel
 
 def build_model(args) -> torch.nn.Module:
     if args['method'] == 'fedrap' and args['model'] == 'pcf':
@@ -14,7 +15,7 @@ def build_model(args) -> torch.nn.Module:
                 vocab_size=args['num_items'],
                 n_layer=1,
                 n_head=1,
-                n_embd=32,
+                n_embd=256,
                 max_position_embeddings=5,
                 # max_position_embeddings=args['seq_length'] if args['condational_method']=='add' else args['seq_length'] + 1 ,
         )
@@ -26,6 +27,15 @@ def build_model(args) -> torch.nn.Module:
         elif args['model'] == 'cf':
             model = CollaboFilterModel(args)
         return decoder, model
+
+    elif args['method'] == "fedbert":
+        encoder = BERTModel(args)
+        
+        if args['model'] == 'pcf':
+            model = PersonalizedCollaboFilterModel(args)
+        elif args['model'] == 'cf':
+            model = CollaboFilterModel(args)
+        return encoder, model
     else:
         raise NotImplementedError(f"Model {args['model']} not implemented")
     return model

@@ -44,4 +44,32 @@ class Lastfm(BaseDataset):
 
         return None
 
+    def reindex(self, ratings):
+        # Reindex user id and item id
+        user_id = ratings[['uid']].drop_duplicates().reindex()
+        user_id['userId'] = np.arange(len(user_id))
+        ratings = pd.merge(ratings, user_id, on=['uid'], how='left')
+
+        item_id = ratings[['mid']].drop_duplicates()
+        item_id['itemId'] = np.arange(1, len(item_id)+1)
+        ratings = pd.merge(ratings, item_id, on=['mid'], how='left')
+
+        # ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by='userId', ascending=True)
+        ratings = ratings[['userId', 'itemId', 'rating', 'timestamp']].sort_values(by=['userId', 'timestamp'], ascending=True)
+        return ratings
+
+    def sample_train_data(self):
+        grouped_ratings = self.train_ratings.groupby('userId')
+        train = {}
+        for user_id, user_ratings in grouped_ratings:
+            train[user_id] = {}
+            train[user_id]['train'] = self._negative_sample(
+                user_ratings, self.negatives, self.args['num_negatives'])
+
+            # unique_item_ids = list(dict.fromkeys(user_ratings['itemId']))
+            # train[user_id]['train_positive'] = unique_item_ids
+            train[user_id]['train_positive'] = user_ratings.itemId.tolist()
+
+        return train
+
     

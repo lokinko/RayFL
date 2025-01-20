@@ -22,7 +22,7 @@ class UserItemRatingDataset(Dataset):
     def __len__(self):
         return self.user_tensor.size(0)
 
-@ray.remote(num_gpus=0.25)
+@ray.remote(num_gpus=0.125)
 class FedNcfActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)

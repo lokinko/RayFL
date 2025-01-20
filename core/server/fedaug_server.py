@@ -136,13 +136,23 @@ class FedAugServer(BaseServer):
             lambda a, v: a.train_decoder.remote(copy.deepcopy(self.decoder), v), \
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for result in tqdm(results, desc="Training", total=len(participants)):
-            user_id, client_decoder, client_decoder_loss = result
+            user_id, client_decoder, client_decoder_loss, client_decoder_acc = result
             self.users[user_id]['decoder_dict'].update(client_decoder.state_dict())
             self.users[user_id]['decoder_loss'] = client_decoder_loss
+            self.users[user_id]['decoder_acc'] = client_decoder_acc
 
+    # def train_on_round(self, participants):
+    #     results = self.pool.map_unordered(
+    #         lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
+    #         [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
+    #     for result in tqdm(results, desc="Training", total=len(participants)):
+    #         user_id, client_model, client_loss = result
+    #         self.users[user_id]['model_dict'].update(client_model.state_dict())
+    #         self.users[user_id]['loss'] = client_loss
+    
     def train_on_round(self, participants):
         results = self.pool.map_unordered(
-            lambda a, v: a.train.remote(copy.deepcopy(self.model), v), \
+            lambda a, v: a.train.remote(copy.deepcopy(self.model), self.decoder.transformer.wte, v), \
             [(self.users[user_id], self.train_data[user_id]) for user_id in participants])
         for result in tqdm(results, desc="Training", total=len(participants)):
             user_id, client_model, client_loss = result

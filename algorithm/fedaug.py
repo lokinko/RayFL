@@ -10,7 +10,7 @@ def run(args):
     server.allocate_init_status()
     logging.info(f"Creates {args['method']} server successfully.")
 
-    for communication_round in range(50): #30
+    for communication_round in range(150): #50
         
         print(f"Round {communication_round} starts.")
         participants = server.select_participants()
@@ -18,13 +18,16 @@ def run(args):
 
         server.train_decoder_on_round(participants)
         round_decoder_loss = sum([sum(server.users[user]['decoder_loss'])/len(server.users[user]['decoder_loss']) for user in server.users]) / len(server.users)
+        round_decoder_acc = sum([sum(server.users[user]['decoder_acc'])/len(server.users[user]['decoder_acc']) for user in server.users]) / len(server.users)
         server_decoder_params = server.aggregate_decoder(participants)
 
-        # if communication_round != 49:
-        #     for _, user in server.users.items():
-        #         user['decoder_dict'].update(server_decoder_params)
+        if communication_round != 149:
+            for _, user in server.users.items():
+                user['decoder_dict'].update(server_decoder_params)
 
         server.decoder.load_state_dict(server.decoder.state_dict() | server_decoder_params)
+
+        logging.info(f"Round = {communication_round}, Decoder_Loss = {round_decoder_loss}, Decoder_Acc = {round_decoder_acc}")
 
         # save_path = server.args['log_dir'] / f"{communication_round}" / f"decoder_{communication_round}.pt"
 
@@ -44,7 +47,7 @@ def run(args):
     # generate data
     participants = server.select_participants()
     server.augment_dataset(participants)
-
+    server.dataset.train_ratings.to_csv('./train_ratings.csv', index=False)
     # server.dataset.negatives = server.dataset._sample_negative_candidates(server.dataset.ratings, server.dataset.args['negatives_candidates'])
 
     # server.test_data = server.dataset.test_data
@@ -73,6 +76,15 @@ def run(args):
 
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
+        # if communication_round == 0:
+        #     import pandas as pd
+        #     user_data = [
+        #         (user, sum(server.users[user]['loss']), len(server.train_data[user]['train'][0]))
+        #         for user in server.users
+        #     ]
+
+        #     df = pd.DataFrame(user_data, columns=['user', 'total_loss', 'loss_count'])
+        #     df.to_csv('./user_loss.csv', index=False)
 
         # save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pt"
 

@@ -6,6 +6,7 @@ import ray
 
 import torch
 import pandas as pd
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
@@ -49,7 +50,7 @@ class UserItemSeqDataset(Dataset):
     def __getitem__(self, idx):
         return self.input_ids[idx], self.target_ids[idx], self.user_ids[idx]
 
-@ray.remote(num_gpus=0.25)
+@ray.remote(num_gpus=0.1)
 class FedAugActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
@@ -69,6 +70,7 @@ class FedAugActor(BaseClient):
 
         optimizer = torch.optim.Adam(client_decoder.parameters(), lr=0.01)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
+        last_layer_params = client_decoder.lm_head.parameters()
 
         seq_dataloader = DataLoader(
             dataset=UserItemSeqDataset(uid=user['user_id'], seq=train_seq_data),
@@ -79,8 +81,8 @@ class FedAugActor(BaseClient):
         client_decoder.train()
         client_decoder_loss = []
         client_decoder_acc = []
-        # for epoch in range(self.args['local_epoch']):
-        for epoch in range(1):
+        for epoch in range(self.args['local_epoch']):
+        # for epoch in range(1):
             epoch_loss, samples = 0, 0
             total_correct_predictions = 0
             loss_fn = torch.nn.CrossEntropyLoss()
@@ -108,6 +110,9 @@ class FedAugActor(BaseClient):
                 logits = logits / temperature
                 # Compute loss
                 loss = loss_fn(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+                # reg
+                l1_norm = sum(p.abs().sum() for p in last_layer_params)
+                loss += 0 * l1_norm
                 loss.backward()
 
                 optimizer.step()
@@ -124,7 +129,7 @@ class FedAugActor(BaseClient):
         client_decoder.to('cpu')
         logging.info(f"User {user['user_id']} training decoder finished with loss = {client_decoder_loss}.")
         logging.info(f"User {user['user_id']} training decoder finished with train_acc = {client_decoder_acc}.")
-        return user['user_id'], client_decoder, client_decoder_loss
+        return user['user_id'], client_decoder, client_decoder_loss, client_decoder_acc
 
     def augment_data(self, decoder, user_data):
         client_decoder = copy.deepcopy(decoder)
@@ -176,7 +181,7 @@ class FedAugActor(BaseClient):
         return new_user_ratings_df
 
 
-    def train(self, model, user_data):
+    def train(self, model, seq_emb, user_data):
         client_model = copy.deepcopy(model)
         user, train_data  = user_data[0], user_data[1]['train']
         if user['model_dict'] is not None:
@@ -184,6 +189,8 @@ class FedAugActor(BaseClient):
             client_model.load_state_dict(user_model_dict)
 
         client_model = client_model.to(self.device)
+        seq_emb.requires_grad = False
+        seq_emb = seq_emb.to(self.device)
 
         if self.args['model'] == 'cf':
             optimizer = torch.optim.Adam([
@@ -212,6 +219,7 @@ class FedAugActor(BaseClient):
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             loss_fn = torch.nn.BCELoss()
+            cos = torch.nn.CosineSimilarity(dim=-1)
             for users, items, ratings in dataloader:
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
                 optimizer.zero_grad()
@@ -222,6 +230,15 @@ class FedAugActor(BaseClient):
                     ratings_pred, items_personality, items_commonality = client_model(items) #note
 
                 loss = loss_fn(ratings_pred.view(-1), ratings)
+                
+                # items_seq = seq_emb(items)
+                # posi = cos(items_seq, items_commonality)
+                # nega = cos(items_commonality, items_personality)
+                # logits = torch.cat((posi.reshape(-1, 1), nega.reshape(-1, 1)), dim=1)
+                # target = torch.zeros(logits.size(0)).to(self.device).long()
+                # loss2 = F.cross_entropy(logits, target)
+                # loss = loss + 0.01 * loss2
+
                 loss.backward()
                 optimizer.step()
                 scheduler.step()

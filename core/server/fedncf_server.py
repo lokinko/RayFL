@@ -12,7 +12,7 @@ from tqdm import tqdm
 from core.server.base_server import BaseServer
 from core.client.fedncf_client import FedNcfActor
 from core.model.model.build_model import build_model
-from dataset import MovieLens
+from dataset import MovieLens, Lastfm, Amazon, Foursquare
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
@@ -68,6 +68,18 @@ class FedNcfServer(BaseServer):
         elif self.args['dataset'] == 'movielens-100k':
             dataset = MovieLens(self.args)
             dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/movielens-100k/ratings.data')
+        
+        elif self.args['dataset'] == 'lastfm-2k':
+            dataset = Lastfm(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/lastfm-2k/ratings.dat')
+
+        elif self.args['dataset'] == 'amazon':
+            dataset = Amazon(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/amazon/ratings.dat')
+        
+        elif self.args['dataset'] == 'foursquare':
+            dataset = Foursquare(self.args)
+            dataset.load_user_dataset(self.args['min_items'], self.args['work_dir']/'data/foursquare/ratings.dat')
 
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
