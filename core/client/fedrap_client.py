@@ -53,6 +53,7 @@ class FedRapLoss(torch.nn.Module):
                - self.args['lambda'] * self.independency(item_personality, item_commonality) \
                + self.args['mu'] * third
 
+        # loss = self.crit(ratings_pred, ratings)
         return loss
 
 
@@ -71,7 +72,7 @@ class FedRapActor(BaseClient):
         user_model.load_state_dict(user_context['state_dict'])
 
         user_model = user_model.to(self.device)
-        optimizer = torch.optim.Adam([
+        optimizer = torch.optim.SGD([
             {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
             {'params': user_model.item_personality.parameters(), 'lr': self.args['lr_args']},
             {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},

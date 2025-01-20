@@ -13,7 +13,7 @@ from model.recommendation import PersonalUserItemInteraction
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
-class FedRapServer(BaseServer):
+class FedRAPServer(BaseServer):
     def __init__(self, args, special_args) -> None:
         super().__init__(args, special_args)
         seed_anything(seed=self.args['seed'])
@@ -25,14 +25,14 @@ class FedRapServer(BaseServer):
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
         self.global_model = PersonalUserItemInteraction(self.args)
 
-        for user in range(int(self.args['num_users'])):
-            self.user_context[user] = {
-                'user_id': user,
+        for user_id in range(int(self.args['num_users'])):
+            self.user_context[user_id] = {
+                'user_id': user_id,
                 'state_dict': copy.deepcopy(self.global_model.state_dict()),
                 'loss': [],
             }
 
-        actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
+        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_pool = ray.util.ActorPool([
             FedRapActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])

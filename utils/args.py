@@ -2,6 +2,7 @@ import os
 import time
 import argparse
 
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -30,24 +31,27 @@ def get_args():
 
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--save', action='store_true', default=False)
+    parser.add_argument('--comment', type=str, default='default')
+    parser.add_argument('--project', type=str, default='default')
 
     args, unknown_args = parser.parse_known_args()
 
     args = vars(args)
 
-    # set the running timestamp
-    args['timestamp'] = time.strftime('%m%d%H%M%S', time.localtime(time.time()))
-
     # set the working directory
     args['work_dir'] = work_dir
+    args['log_dir'] = work_dir / 'logs'
     args['data_dir'] = work_dir / 'dataset/data'
 
     # set the log directory
-    args['log_dir'] = Path(
-        f"{args['work_dir']}/logs/{args['method'].lower()}_{args['dataset'].lower()}_{args['timestamp']}")
+    args['timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(datetime.now().timestamp() + 8 * 3600))
+    args['log_dir'] = Path(f"{args['log_dir']}/{args['method']}_{args['dataset']}_{args['timestamp']}")
 
     if not args['log_dir'].exists():
         args['log_dir'].mkdir(parents=True, exist_ok=True)
 
-    args['unknown'] = {k[2:]: v for k, v in zip(unknown_args[::2], unknown_args[1::2])} if unknown_args is not None else None
+    if unknown_args is None:
+        for k, v in zip(unknown_args[::2], unknown_args[1::2]):
+            args['unknown'][k[2:]] = v
+
     return args
