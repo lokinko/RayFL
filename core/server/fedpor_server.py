@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from core.server.base_server import BaseServer
 from core.client.fedpor_client import FedPORActor
-from dataset.movielens import MovieLens
+from dataset import MovieLens, AmazonVideo
 from model.recommendation import PersonalRegularUserItemInteraction
 from utils.metrics.metronatk import GlobalMetrics
 from utils.utils import seed_anything, initLogging, measure_time
@@ -52,6 +52,12 @@ class FedPORServer(BaseServer):
             dataset = MovieLens.remote(self.args)
             self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset(
                 self.args['min_items'], self.args['data_dir'] / 'movielens-100k/ratings.dat'))
+
+        elif self.args['dataset'] == 'amazon-video':
+            self.args["min_items"] = 10
+            dataset = AmazonVideo.remote(self.args)
+            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
+                self.args['min_items'], self.args['data_dir'] / 'amazon-video/ratings.csv'))
 
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
