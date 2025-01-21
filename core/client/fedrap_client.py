@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
+from model.loss import PersonalBCELoss
 from utils.utils import initLogging, seed_anything
 
 class UserItemRatingDataset(Dataset):
@@ -21,40 +22,6 @@ class UserItemRatingDataset(Dataset):
 
     def __len__(self):
         return self.user_tensor.size(0)
-
-
-class FedRapLoss(torch.nn.Module):
-    def __init__(self, args):
-        super().__init__()
-        self.args = args
-        self.crit = torch.nn.BCELoss()
-        self.independency = torch.nn.MSELoss()
-
-        if self.args['regular'] == 'l1':
-            self.reg = torch.nn.L1Loss()
-        else:
-            self.reg = torch.nn.MSELoss()
-
-    def forward(self, ratings_pred, ratings, item_personality, item_commonality):
-        if self.args['regular'] == 'none':
-            self.args['mu'] = 0
-
-        if self.args['regular'] == 'nuc':
-            third = torch.norm(item_commonality, p='nuc')
-
-        elif self.args['regular'] == 'inf':
-            third = torch.norm(item_commonality, p=float('inf'))
-
-        else:
-            dummy_target = torch.zeros_like(item_commonality, requires_grad=False)
-            third = self.reg(item_commonality, dummy_target)
-
-        loss = self.crit(ratings_pred, ratings) \
-               - self.args['lambda'] * self.independency(item_personality, item_commonality) \
-               + self.args['mu'] * third
-
-        # loss = self.crit(ratings_pred, ratings)
-        return loss
 
 
 @ray.remote
@@ -104,7 +71,7 @@ class FedRAPActor(BaseClient):
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             for users, items, ratings in dataloader:
-                loss_fn = FedRapLoss(self.args)
+                loss_fn = PersonalBCELoss(self.args)
 
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
 
