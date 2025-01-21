@@ -73,8 +73,8 @@ def run(args):
         sns.heatmap(torch.abs(server.user_context[0]['state_dict']['item_commonality.weight'][:100, :]))
 
         logging.info(
-            f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}"
-            f"Commonality HR = {com_hr:.4f}, Commonality NDCG = {com_ndcg:.4f},"
+            f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}, "
+            f"Commonality HR = {com_hr:.4f}, Commonality NDCG = {com_ndcg:.4f}, "
             f"Decouple HR = {decouple_hr:.4f}, Decouple NDCG = {decouple_ndcg:.4f}"
         )
 

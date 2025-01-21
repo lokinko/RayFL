@@ -72,11 +72,23 @@ class FedPORActor(BaseClient):
         user_model.load_state_dict(user_context['state_dict'])
 
         user_model = user_model.to(self.device)
-        optimizer = torch.optim.SGD([
-            {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-            {'params': user_model.item_personality.parameters(), 'lr': self.args['lr_args']},
-            {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
-        ], weight_decay=self.args['l2_regularization'])
+
+        if self.args['optimizer'] == "SGD":
+            optimizer = torch.optim.SGD([
+                {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+                {'params': user_model.item_personality.parameters(), 'lr': self.args['lr_args']},
+                {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
+            ], weight_decay=self.args['l2_regularization'])
+
+        elif self.args['optimizer'] == "Adam":
+            optimizer = torch.optim.Adam([
+                {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
+                {'params': user_model.item_personality.parameters(), 'lr': self.args['lr_args']},
+                {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
+            ], weight_decay=self.args['l2_regularization'])
+        else:
+            raise NotImplementedError(f"Not implemented optimizer: {self.args['optimizer']}")
+
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
         dataloader = DataLoader(
@@ -84,8 +96,7 @@ class FedPORActor(BaseClient):
                     user_tensor=torch.LongTensor(train_data[0]),
                     item_tensor=torch.LongTensor(train_data[1]),
                     rating_tensor=torch.LongTensor(train_data[2])),
-            batch_size=self.args['batch_size'],
-            shuffle=True
+            batch_size=self.args['batch_size'], shuffle=True
         )
 
         user_model.train()
@@ -110,9 +121,12 @@ class FedPORActor(BaseClient):
             training_loss.append(epoch_loss / samples)
 
             # check convergence
-            if epoch > 0 and abs(training_loss[epoch] - training_loss[epoch - 1]) / abs(
-                    training_loss[epoch - 1]) < self.args['tol']:
-                break
+            try:
+                if epoch > 0 and abs(training_loss[epoch] - training_loss[epoch - 1]) / abs(
+                        training_loss[epoch - 1]) < self.args['tol']:
+                    break
+            except ZeroDivisionError:
+                logging.info(f"epoch={epoch} = {training_loss[epoch]}, last epoch = {training_loss[epoch - 1]} ")
 
         user_model.to('cpu')
         return user_context['user_id'], user_model, training_loss

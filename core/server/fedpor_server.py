@@ -32,7 +32,7 @@ class FedPORServer(BaseServer):
                 'loss': [],
             }
 
-        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
+        actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_pool = ray.util.ActorPool([
             FedPORActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])

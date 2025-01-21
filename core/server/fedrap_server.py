@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from core.server.base_server import BaseServer
-from core.client.fedrap_client import FedRapActor
+from core.client.fedrap_client import FedRAPActor
 from dataset.movielens import MovieLens
 from model.recommendation import PersonalUserItemInteraction
 from utils.metrics.metronatk import GlobalMetrics
@@ -34,7 +34,7 @@ class FedRAPServer(BaseServer):
 
         actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_pool = ray.util.ActorPool([
-            FedRapActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
+            FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])
         self.metrics = GlobalMetrics(self.args['top_k'])
 
