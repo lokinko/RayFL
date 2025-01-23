@@ -25,7 +25,7 @@ class MovielensTest(unittest.TestCase):
         self.assertEqual(len(ray.get(dataset.get_user_pool.remote())), 943)
         self.assertEqual(len(ray.get(dataset.get_item_pool.remote())), 1682)
 
-        train = ray.get(dataset.sample_train_data.remote())
+        train = ray.get(dataset.sample_federated_train_data.remote())
         val, test = ray.get(dataset.sample_test_data.remote())
         for user, data in train.items():
             self.assertEqual(len(data['train']), 3) # user, item, rating
@@ -42,7 +42,7 @@ class MovielensTest(unittest.TestCase):
         self.assertEqual(len(ray.get(dataset.get_user_pool.remote())), 6040)
         self.assertEqual(len(ray.get(dataset.get_item_pool.remote())), 3706)
 
-        train = ray.get(dataset.sample_train_data.remote())
+        train = ray.get(dataset.sample_federated_train_data.remote())
         val, test = ray.get(dataset.sample_test_data.remote())
         for user, data in train.items():
             self.assertEqual(len(data['train']), 3) # user, item, rating

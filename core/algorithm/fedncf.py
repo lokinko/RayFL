@@ -34,7 +34,7 @@ def run(args):
         logging.info(f"{'='*20} Round {communication_round} starts {'='*20}")
         participants = server.select_participants()
 
-        train_data_future = server.dataset.sample_train_data.remote()
+        train_data_future = server.dataset.sample_federated_train_data.remote()
         server.train_on_round(participants)
 
         round_loss = sum(sum(server.user_context[user_id]['loss']) / len(server.user_context[user_id]['loss']) for user_id in participants) / len(participants)

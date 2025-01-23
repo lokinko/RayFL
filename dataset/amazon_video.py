@@ -56,12 +56,18 @@ class AmazonVideo:
             ['userId', 'itemId', 'rating']]
 
     @measure_time()
-    def sample_train_data(self):
+    def sample_federated_train_data(self):
         grouped_ratings = self.train_ratings.groupby('userId')
         train = {}
         for user_id, user_ratings in grouped_ratings:
             train[user_id] = negative_sample(
                 user_ratings, self.negatives[['userId', 'negative_items']], self.args['num_negatives'])
+        return train
+
+    @measure_time()
+    def sample_central_train_data(self):
+        train = negative_sample(
+            self.train_ratings, self.negatives[['userId', 'negative_items']], self.args['num_negatives'])
         return train
 
     @measure_time()

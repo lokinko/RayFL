@@ -21,7 +21,7 @@ class FedRAPServer(BaseServer):
 
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
-        self.train_data = ray.get(self.dataset.sample_train_data.remote())
+        self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
         self.global_model = PersonalUserItemInteraction(self.args)
 
