@@ -32,12 +32,19 @@ class FedRAPActor(BaseClient):
         seed_anything(args['seed'])
         initLogging(args['log_dir'] / f"client_{os.getpid()}.log", stream=False)
 
-    def train(self, model, user_data):
+    def train(self, model, item_commonality, user_data):
         user_context, train_data = user_data[0], user_data[1]
 
         user_model = copy.deepcopy(model)
-        user_model.load_state_dict(user_context['state_dict'])
+        user_model.setItemCommonality(item_commonality)
 
+        user_model_dict = copy.deepcopy(model.state_dict())
+        for key in user_model_dict.keys():
+            user_model_dict[key] = copy.deepcopy(user_context['state_dict'][key].data)
+        user_model_dict['item_commonality.weight'] = copy.deepcopy(
+            model.state_dict()['item_commonality.weight'].data)
+
+        user_model.load_state_dict(user_model_dict)
         user_model = user_model.to(self.device)
 
         if self.args['optimizer'] == "SGD":

@@ -144,7 +144,7 @@ class PersonalRegularPlusUserItemInteraction(torch.nn.Module):
         logits = self.user_embedding(item_direction * item_scale)
         rating = self.logistic(logits)
 
-        return rating, item_personality, item_commonality
+        return rating, item_scale, item_direction
 
     def commonality_forward(self, item_indices):
         if not isinstance(item_indices, torch.Tensor):

@@ -32,7 +32,7 @@ class FedRAPServer(BaseServer):
                 'loss': [],
             }
 
-        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
+        actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_pool = ray.util.ActorPool([
             FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])
@@ -43,6 +43,7 @@ class FedRAPServer(BaseServer):
     def load_dataset(self):
         if self.args['dataset'] == 'movielens-1m':
             self.args['min_items'] = 10
+
             dataset = MovieLens.remote(self.args)
             self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
                 self.args['min_items'], self.args['data_dir'] / 'movielens-1m/ratings.dat'))
@@ -82,17 +83,19 @@ class FedRAPServer(BaseServer):
                 if key not in global_weights:
                     global_weights[key] = torch.zeros_like(self.global_model.state_dict()[key])
 
-                global_weights[key] += self.user_context[user]['state_dict'][key]
+                global_weights[key].data += self.user_context[user]['state_dict'][key].data
             samples += 1
             iter_participants.set_description(f"Aggregating {samples} participants")
 
-        global_weights = {k: v / samples for k, v in global_weights.items()}
+        for k, v in global_weights.items():
+            global_weights[k].data = v.data / samples
+
         return global_weights
 
 
-    def train_on_round(self, participants):
+    def train_on_round(self, item_commonality, participants):
         results = self.ray_actor_pool.map_unordered(
-            lambda a, v: a.train.remote(copy.deepcopy(self.global_model), v), \
+            lambda a, v: a.train.remote(copy.deepcopy(self.global_model), item_commonality, v), \
             [(self.user_context[user_id], self.train_data[user_id]) for user_id in participants])
 
         results = tqdm(results, total=len(participants), ncols=120)
