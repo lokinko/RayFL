@@ -1,4 +1,5 @@
 *__pycache__
+*wandb/
 
 *.pyc
 *.gz
@@ -6,5 +7,7 @@
 *.log
 *.csv
 *.dat
+*.data
 *.ipynb
 *.pt
+*.pth
