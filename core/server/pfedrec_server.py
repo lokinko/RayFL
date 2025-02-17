@@ -106,8 +106,8 @@ class PFedRecServer(BaseServer):
             user_model = copy.deepcopy(self.global_model)
 
             user_param_dict = self.user_context[user]['state_dict']
-            user_param_dict['item_embedding.weight'] = copy.deepcopy(
-                    self.global_model.state_dict()['item_embedding.weight'])
+            user_param_dict['item_commonality.weight'] = copy.deepcopy(
+                    self.global_model.state_dict()['item_commonality.weight'])
             user_model.load_state_dict(user_param_dict)
 
             user_model.eval()
