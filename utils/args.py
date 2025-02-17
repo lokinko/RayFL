@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 
 METHOD = ['fedrap', 'pfedrec', 'fedpor', 'fedporplus']
-DATASET = ['movielens-1m', 'movielens-100k', 'amazon-video']
+DATASET = ['movielens-100k', 'movielens-1m', 'amazon', 'last.fm', 'tenrec']
 
 work_dir = Path(__file__).resolve().parents[1]
 
@@ -22,8 +22,9 @@ def get_args():
     parser.add_argument('-cr', '--client_sample_ratio', type=float, default=1.0)
     parser.add_argument('-bs', '--batch_size', type=int, default=2048)
 
-    parser.add_argument('--method', type=str, choices=METHOD, default="fedrap")
-    parser.add_argument('--dataset', choices=DATASET, type=str, default="movielens-1m")
+    parser.add_argument('--method', type=str, choices=METHOD)
+    parser.add_argument('--dataset', type=str, choices=DATASET)
+    parser.add_argument('--data_file', type=str)
     parser.add_argument('--optimizer', type=str, default='SGD')
     parser.add_argument('--num_rounds', type=int, default=100)
     parser.add_argument('--local_epoch', type=int, default=10)
@@ -35,7 +36,6 @@ def get_args():
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--save', action='store_true', default=False)
     parser.add_argument('--comment', type=str, default='default')
-    parser.add_argument('--project', type=str, default='default')
 
     args, unknown_args = parser.parse_known_args()
 

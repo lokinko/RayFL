@@ -1,4 +1,3 @@
-from dataset.movielens import MovieLens
-from dataset.amazon_video import AmazonVideo
+from dataset.ratings_dataset import UserItemRatingsDataset
 
-__all__ = ['MovieLens', 'AmazonVideo']
+__all__ = ['UserItemRatingsDataset']
