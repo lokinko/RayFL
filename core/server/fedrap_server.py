@@ -9,7 +9,7 @@ from tqdm import tqdm
 from core.server.base_server import BaseServer
 from core.client.fedrap_client import FedRAPActor
 from dataset import MovieLens, AmazonVideo
-from model.recommendation import PersonalUserItemInteraction
+from model.recommendation import FedRAP
 from utils.metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
@@ -23,7 +23,7 @@ class FedRAPServer(BaseServer):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
-        self.global_model = PersonalUserItemInteraction(self.args)
+        self.global_model = FedRAP(self.args)
 
         for user_id in range(int(self.args['num_users'])):
             self.user_context[user_id] = {
@@ -33,9 +33,9 @@ class FedRAPServer(BaseServer):
             }
 
         actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
-        self.ray_actor_pool = ray.util.ActorPool([
-            FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
-            for _ in range(self.args['num_workers'])])
+        self.ray_actor_list = [
+            FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
+        self.ray_actor_pool = ray.util.ActorPool(self.ray_actor_list)
         self.metrics = RecMetrics(self.args['top_k'])
 
 

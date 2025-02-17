@@ -33,10 +33,10 @@ class FedPORPLUSServer(BaseServer):
             }
 
         actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
-        self.ray_actor_pool = ray.util.ActorPool([
-            FedPORPLUSActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
-            for _ in range(self.args['num_workers'])])
-        self.metrics = GlobalMetrics(self.args['top_k'])
+        self.ray_actor_list = [
+            FedPORPLUSActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
+        self.ray_actor_pool = ray.util.ActorPool(self.ray_actor_list)
+        self.metrics = RecMetrics(self.args['top_k'])
 
 
     @measure_time()
