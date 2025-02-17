@@ -7,13 +7,13 @@ import numpy as np
 from tqdm import tqdm
 
 from core.server.base_server import BaseServer
-from core.client.fedporplus_client import FedPORPLUSActor
+from core.client.fedpora_client import FedPORAActor
+from model.recommendation import FedPORAMo
 from dataset.ratings_dataset import UserItemRatingsDataset
-from model.recommendation import FedPORPLUSMo
 from metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
-class FedPORPLUSServer(BaseServer):
+class FedPORAServer(BaseServer):
     def __init__(self, args, special_args) -> None:
         super().__init__(args, special_args)
         seed_anything(seed=self.args['seed'])
@@ -23,7 +23,7 @@ class FedPORPLUSServer(BaseServer):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
-        self.global_model = FedPORPLUSMo(self.args)
+        self.global_model = FedPORAMo(self.args)
 
         for user_id in range(int(self.args['num_users'])):
             self.user_context[user_id] = {
@@ -34,7 +34,7 @@ class FedPORPLUSServer(BaseServer):
 
         actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_list = [
-            FedPORPLUSActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
+            FedPORAActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
         self.ray_actor_pool = ray.util.ActorPool(self.ray_actor_list)
         self.metrics = RecMetrics(self.args['top_k'])
 

@@ -8,8 +8,8 @@ from tqdm import tqdm
 
 from core.server.base_server import BaseServer
 from core.client.fedpor_client import FedPORActor
-from dataset.ratings_dataset import UserItemRatingsDataset
 from model.recommendation import FedPORMo
+from dataset.ratings_dataset import UserItemRatingsDataset
 from metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 

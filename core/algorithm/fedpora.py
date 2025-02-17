@@ -7,9 +7,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import wandb
 
-from core.server.fedporplus_server import FedPORPLUSServer
+from core.server.fedpora_server import FedPORAServer
 
-FEDPORPLUS_ARGS = {
+FEDPORA_ARGS = {
     'num_negatives': 4,
     'item_hidden_dim': 32,
     'negatives_candidates': 99,
@@ -30,7 +30,7 @@ FEDPORPLUS_ARGS = {
 
 
 def run(args):
-    server = FedPORPLUSServer(args, FEDPORPLUS_ARGS)
+    server = FedPORAServer(args, FEDPORA_ARGS)
     server.allocate_init_status()
 
     logging.info(f"Creates {args['method']} server successfully.")

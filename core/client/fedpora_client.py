@@ -11,7 +11,7 @@ from dataset.base_dataset import UserItemRatingDataset
 from utils.utils import initLogging, seed_anything
 
 @ray.remote
-class FedPORPLUSActor(BaseClient):
+class FedPORAActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.device = torch.device(self.args['device'])
