@@ -7,13 +7,13 @@ import numpy as np
 from tqdm import tqdm
 
 from core.server.base_server import BaseServer
-from core.client.fedncf_client import FedNCFActor
+from core.client.pfedrec_client import PFedRecActor
 from dataset import MovieLens, AmazonVideo
-from model.recommendation import UserItemInteraction
-from utils.metrics.metronatk import GlobalMetrics
+from model.recommendation import PFedRec
+from utils.metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
-class FedNCFServer(BaseServer):
+class PFedRecServer(BaseServer):
     def __init__(self, args, special_args) -> None:
         super().__init__(args, special_args)
         seed_anything(seed=self.args['seed'])
@@ -23,7 +23,7 @@ class FedNCFServer(BaseServer):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
-        self.global_model = UserItemInteraction(self.args)
+        self.global_model = PFedRec(self.args)
 
         for user_id in range(int(self.args['num_users'])):
             self.user_context[user_id] = {
@@ -33,10 +33,10 @@ class FedNCFServer(BaseServer):
             }
 
         actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
-        self.ray_actor_pool = ray.util.ActorPool([
-            FedNCFActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
-            for _ in range(self.args['num_workers'])])
-        self.metrics = GlobalMetrics(self.args['top_k'])
+        self.ray_actor_list = [
+            PFedRecActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
+        self.ray_actor_pool = ray.util.ActorPool(self.ray_actor_list)
+        self.metrics = RecMetrics(self.args['top_k'])
 
 
     @measure_time()

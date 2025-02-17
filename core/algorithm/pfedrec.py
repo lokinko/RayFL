@@ -6,9 +6,9 @@ import torch
 import matplotlib.pyplot as plt
 import wandb
 
-from core.server.fedncf_server import FedNCFServer
+from core.server.pfedrec_server import PFedRecServer
 
-FEDNCF_ARGS = {
+PFEDREC_ARGS = {
     'num_negatives': 4,
     'item_hidden_dim': 32,
     'negatives_candidates': 99,
@@ -25,7 +25,7 @@ FEDNCF_ARGS = {
 
 
 def run(args):
-    server = FedNCFServer(args, FEDNCF_ARGS)
+    server = PFedRecServer(args, PFEDREC_ARGS)
     server.allocate_init_status()
 
     logging.info(f"Creates {args['method']} server successfully.")
@@ -65,6 +65,10 @@ def run(args):
 
         server.args['lr_network'] = server.args['lr_network'] * server.args['decay_rate']
         server.args['lr_args'] = server.args['lr_args'] * server.args['decay_rate']
+
+        # update actor config for next round
+        for actor in server.ray_actor_list:
+            ray.get(actor.sync_args.remote(server.args))
 
         save_path = server.args['log_dir'] / f"{communication_round}" / f"{communication_round}.pth"
 

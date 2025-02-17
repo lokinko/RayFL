@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 
-METHOD = ['fedrap', 'fedncf', 'fedpor', 'fedporplus']
+METHOD = ['fedrap', 'pfedrec', 'fedpor', 'fedporplus']
 DATASET = ['movielens-1m', 'movielens-100k', 'amazon-video']
 
 work_dir = Path(__file__).resolve().parents[1]

@@ -23,7 +23,7 @@ class UserItemRatingDataset(Dataset):
         return self.user_tensor.size(0)
 
 @ray.remote
-class FedNCFActor(BaseClient):
+class PFedRecActor(BaseClient):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.device = torch.device(self.args['device'])
