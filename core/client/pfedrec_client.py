@@ -5,22 +5,10 @@ import logging
 import ray
 
 import torch
-from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
+from dataset.base_dataset import UserItemRatingDataset
 from utils.utils import initLogging, seed_anything
-
-class UserItemRatingDataset(Dataset):
-    def __init__(self, user_tensor, item_tensor, rating_tensor):
-        self.user_tensor = user_tensor
-        self.item_tensor = item_tensor
-        self.rating_tensor = rating_tensor
-
-    def __getitem__(self, index):
-        return self.user_tensor[index], self.item_tensor[index], self.rating_tensor[index]
-
-    def __len__(self):
-        return self.user_tensor.size(0)
 
 @ray.remote
 class PFedRecActor(BaseClient):
@@ -53,7 +41,7 @@ class PFedRecActor(BaseClient):
 
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
-        dataloader = DataLoader(
+        dataloader = torch.utils.data.DataLoader(
             dataset=UserItemRatingDataset(
                     user_tensor=torch.LongTensor(train_data[0]),
                     item_tensor=torch.LongTensor(train_data[1]),
