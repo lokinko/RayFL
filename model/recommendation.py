@@ -1,7 +1,7 @@
 import copy
 import torch
 
-class PFedRec(torch.nn.Module):
+class PFedRecMo(torch.nn.Module):
     def __init__(self, args) -> None:
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
@@ -9,7 +9,7 @@ class PFedRec(torch.nn.Module):
         self.num_items = args['num_items']
         self.item_hidden_dim = args['item_hidden_dim']
 
-        self.item_embedding = torch.nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.item_hidden_dim)
+        self.item_commonality = torch.nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.item_hidden_dim)
 
         self.user_embedding = torch.nn.Linear(in_features=self.item_hidden_dim, out_features=1)
         self.logistic = torch.nn.Sigmoid()
@@ -17,14 +17,23 @@ class PFedRec(torch.nn.Module):
     def forward(self, item_indices):
         if not isinstance(item_indices, torch.Tensor):
             item_indices = torch.tensor(item_indices, dtype=torch.long)
-        item_embedding = self.item_embedding(item_indices)
+        item_commonality = self.item_commonality(item_indices)
 
-        logits = self.user_embedding(item_embedding)
+        logits = self.user_embedding(item_commonality)
         rating = self.logistic(logits)
 
-        return rating
+        return rating, None, item_commonality
 
-class FedRAP(torch.nn.Module):
+    def commonality_forward(self, item_indices):
+        if not isinstance(item_indices, torch.Tensor):
+            item_indices = torch.tensor(item_indices, dtype=torch.long)
+        item_commonality = self.item_commonality(item_indices)
+        logits = self.user_embedding(item_commonality)
+
+        rating = self.logistic(logits)
+        return rating, item_commonality
+
+class FedRAPMo(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
@@ -62,7 +71,7 @@ class FedRAP(torch.nn.Module):
         rating = self.logistic(logits)
         return rating, item_commonality
 
-class PersonalRegularUserItemInteraction(torch.nn.Module):
+class FedPORMo(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
@@ -107,7 +116,7 @@ class PersonalRegularUserItemInteraction(torch.nn.Module):
         rating = self.logistic(logits)
         return rating, item_commonality
 
-class PersonalRegularPlusUserItemInteraction(torch.nn.Module):
+class FedPORPLUSMo(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"

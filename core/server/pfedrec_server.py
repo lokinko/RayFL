@@ -8,9 +8,9 @@ from tqdm import tqdm
 
 from core.server.base_server import BaseServer
 from core.client.pfedrec_client import PFedRecActor
-from dataset import MovieLens, AmazonVideo
-from model.recommendation import PFedRec
-from utils.metrics.rec_metrics import RecMetrics
+from dataset.ratings_dataset import UserItemRatingsDataset
+from model.recommendation import PFedRecMo
+from metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 class PFedRecServer(BaseServer):
@@ -23,7 +23,7 @@ class PFedRecServer(BaseServer):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
         self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
-        self.global_model = PFedRec(self.args)
+        self.global_model = PFedRecMo(self.args)
 
         for user_id in range(int(self.args['num_users'])):
             self.user_context[user_id] = {
@@ -41,27 +41,17 @@ class PFedRecServer(BaseServer):
 
     @measure_time()
     def load_dataset(self):
-        if self.args['dataset'] == 'movielens-1m':
+        if self.args['dataset'] in ['movielens-100k', 'movielens-1m', 'amazon', 'last.fm', 'tenrec']:
             self.args['min_items'] = 10
-            dataset = MovieLens.remote(self.args)
-            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
-                self.args['min_items'], self.args['data_dir'] / 'movielens-1m/ratings.dat'))
-
-        elif self.args['dataset'] == 'movielens-100k':
-            self.args['min_items'] = 10
-            dataset = MovieLens.remote(self.args)
-            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset(
-                self.args['min_items'], self.args['data_dir'] / 'movielens-100k/ratings.dat'))
-
-        elif self.args['dataset'] == 'amazon-video':
-            self.args["min_items"] = 10
-            dataset = AmazonVideo.remote(self.args)
-            self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
-                self.args['min_items'], self.args['data_dir'] / 'amazon-video/ratings.csv'))
-
         else:
             raise NotImplementedError(f"Dataset {self.args['dataset']} for {self.args['method']} not implemented")
+
+        dataset = UserItemRatingsDataset.remote(self.args)
+        self.args['num_users'], self.args['num_items'] = ray.get(dataset.load_user_dataset.remote(
+            self.args['min_items'], self.args['data_dir'] / f"{self.args['dataset']}/{self.args['data_file']}"))
+
         return dataset
+
 
 
     def select_participants(self):
@@ -124,6 +114,55 @@ class PFedRecServer(BaseServer):
 
             test_score = user_model(user_data['positive_items'])
             negative_score = user_model(user_data['negative_items'])
+
+            if test_scores is None:
+                test_scores = test_score
+                negative_scores = negative_score
+                test_users = torch.tensor([user] * len(test_score))
+                negative_users = torch.tensor([user] * len(negative_score))
+                test_items = torch.tensor(user_data['positive_items'])
+                negative_items = torch.tensor(user_data['negative_items'])
+            else:
+                test_scores = torch.cat((test_scores, test_score))
+                negative_scores = torch.cat((negative_scores, negative_score))
+                test_users = torch.cat((test_users, torch.tensor([user] * len(test_score))))
+                negative_users = torch.cat((negative_users, torch.tensor([user] * len(negative_score))))
+                test_items = torch.cat((test_items, torch.tensor(user_data['positive_items'])))
+                negative_items = torch.cat((negative_items, torch.tensor(user_data['negative_items'])))
+
+        self.metrics.subjects = [test_users.data.view(-1).tolist(),
+                                 test_items.data.view(-1).tolist(),
+                                 test_scores.data.view(-1).tolist(),
+                                 negative_users.data.view(-1).tolist(),
+                                 negative_items.data.view(-1).tolist(),
+                                 negative_scores.data.view(-1).tolist()]
+
+        hr, ndcg = self.metrics.cal_hit_ratio(), self.metrics.cal_ndcg()
+
+        return hr, ndcg
+
+    @torch.no_grad()
+    def test_commonality(self, user_ratings: dict):
+        test_scores = None
+        negative_scores = None
+        test_users, test_items, negative_users, negative_items = None, None, None, None
+        item_commonality = copy.deepcopy(self.global_model.item_commonality)
+
+        iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
+        for user, user_data in iter_user_ratings:
+            iter_user_ratings.set_description(f"Commonality testing user {user}")
+
+            # load each user's mlp parameters.
+            user_model = copy.deepcopy(self.global_model)
+
+            user_state_dict = copy.deepcopy(self.user_context[user]['state_dict'])
+            user_model.load_state_dict(user_state_dict)
+            user_model.setItemCommonality(item_commonality)
+
+            user_model.eval()
+
+            test_score, _, = user_model.commonality_forward(user_data['positive_items'])
+            negative_score, _, = user_model.commonality_forward(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score

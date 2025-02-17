@@ -28,13 +28,13 @@ class PFedRecActor(BaseClient):
         if self.args['optimizer'] == "SGD":
             optimizer = torch.optim.SGD([
                 {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-                {'params': user_model.item_embedding.parameters(), 'lr': self.args['lr_args']},
+                {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
             ], weight_decay=self.args['l2_regularization'])
 
         elif self.args['optimizer'] == "Adam":
             optimizer = torch.optim.Adam([
                 {'params': user_model.user_embedding.parameters(), 'lr': self.args['lr_network']},
-                {'params': user_model.item_embedding.parameters(), 'lr': self.args['lr_args']},
+                {'params': user_model.item_commonality.parameters(), 'lr': self.args['lr_args']},
             ], weight_decay=self.args['l2_regularization'])
         else:
             raise NotImplementedError(f"Not implemented optimizer: {self.args['optimizer']}")
@@ -59,7 +59,7 @@ class PFedRecActor(BaseClient):
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
 
                 optimizer.zero_grad()
-                ratings_pred = user_model(items)
+                ratings_pred, _, _ = user_model(items)
 
                 loss = loss_fn(ratings_pred.view(-1), ratings)
                 loss.backward()

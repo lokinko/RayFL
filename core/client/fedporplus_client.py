@@ -7,7 +7,6 @@ import ray
 import torch
 
 from core.client.base_client import BaseClient
-from loss.fedrap import FedRAPLoss
 from dataset.base_dataset import UserItemRatingDataset
 from utils.utils import initLogging, seed_anything
 
@@ -58,14 +57,14 @@ class FedPORPLUSActor(BaseClient):
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             for users, items, ratings in dataloader:
-                loss_fn = FedRAPLoss(self.args)
+                loss_fn = torch.nn.BCELoss()
 
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
 
                 optimizer.zero_grad()
-                ratings_pred, items_personality, items_commonality = user_model(items)
+                ratings_pred, _, _ = user_model(items)
 
-                loss = loss_fn(ratings_pred.view(-1), ratings, items_personality, items_commonality)
+                loss = loss_fn(ratings_pred.view(-1), ratings)
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
