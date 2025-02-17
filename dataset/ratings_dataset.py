@@ -7,18 +7,44 @@ from utils.utils import *
 from utils.rec_utils import *
 
 @ray.remote
-class AmazonVideo:
+class UserItemRatingsDataset:
     def __init__(self, args) -> None:
         self.args = args
         self.ratings = None
         self.user_pool = None
         self.item_pool = None
         seed_anything(args['seed'])
-        initLogging(args['log_dir'] / "movielens.log", stream=False)
+        initLogging(args['log_dir'] / f"{args['dataset']}.log", stream=False)
 
     def load_user_dataset(self, min_items, data_file):
-        ratings = pd.read_csv(
-            data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+        # origin data with all [uid, mid, rating, timestamp] samples.
+        if self.args['dataset'] == 'movielens-100k':
+            ratings = pd.read_csv(
+                data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+
+        elif self.args['dataset'] == 'movielens-1m':
+            ratings = pd.read_csv(
+                data_file, sep='::', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+
+        elif self.args['dataset'] == 'amazon':
+            ratings = pd.read_csv(
+                data_file, sep=',', header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
+
+        elif self.args['dataset'] == 'last.fm':
+            ratings = pd.read_csv(
+                data_file, sep="\t", header=1, usecols=[0, 1, 2], names=['uid', 'mid', 'rating'], engine='python')
+
+        elif self.args['dataset'] == 'tenrec':
+            chunks = pd.read_csv(data_file, sep=",", header=1, usecols=[0, 1, 2], names=['uid', 'mid', 'rating'], engine='python', chunksize=1000000)
+
+            all_chunks = []
+            for chunk in chunks:
+                all_chunks.append(chunk)
+
+            ratings = pd.concat(all_chunks)
+
+        else:
+            raise ValueError(f"Invalid dataset: {self.args['dataset']}")
 
         # filter the user with num_samples < min_items
         ratings = datasetFilter(ratings, min_items=min_items)
