@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from core.client.base_client import BaseClient
-from model.loss import PersonalBCELoss
+from loss.fedrap import FedRAPLoss
 from utils.utils import initLogging, seed_anything
 
 class UserItemRatingDataset(Dataset):
@@ -78,7 +78,7 @@ class FedRAPActor(BaseClient):
         for epoch in range(self.args['local_epoch']):
             epoch_loss, samples = 0, 0
             for users, items, ratings in dataloader:
-                loss_fn = PersonalBCELoss(self.args)
+                loss_fn = FedRAPLoss(self.args)
 
                 users, items, ratings = users.to(self.device), items.to(self.device), ratings.float().to(self.device)
 

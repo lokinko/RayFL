@@ -10,7 +10,7 @@ from core.server.base_server import BaseServer
 from core.client.fedporplus_client import FedPORPLUSActor
 from dataset import MovieLens, AmazonVideo
 from model.recommendation import PersonalRegularPlusUserItemInteraction
-from utils.metrics.metronatk import GlobalMetrics
+from utils.metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 class FedPORPLUSServer(BaseServer):

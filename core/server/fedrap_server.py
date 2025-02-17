@@ -10,7 +10,7 @@ from core.server.base_server import BaseServer
 from core.client.fedrap_client import FedRAPActor
 from dataset import MovieLens, AmazonVideo
 from model.recommendation import PersonalUserItemInteraction
-from utils.metrics.metronatk import GlobalMetrics
+from utils.metrics.rec_metrics import RecMetrics
 from utils.utils import seed_anything, initLogging, measure_time
 
 class FedRAPServer(BaseServer):
@@ -36,7 +36,7 @@ class FedRAPServer(BaseServer):
         self.ray_actor_pool = ray.util.ActorPool([
             FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args)
             for _ in range(self.args['num_workers'])])
-        self.metrics = GlobalMetrics(self.args['top_k'])
+        self.metrics = RecMetrics(self.args['top_k'])
 
 
     @measure_time()

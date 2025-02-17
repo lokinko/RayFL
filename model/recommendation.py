@@ -1,7 +1,7 @@
 import copy
 import torch
 
-class UserItemInteraction(torch.nn.Module):
+class PFedRec(torch.nn.Module):
     def __init__(self, args) -> None:
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
@@ -24,7 +24,7 @@ class UserItemInteraction(torch.nn.Module):
 
         return rating
 
-class PersonalUserItemInteraction(torch.nn.Module):
+class FedRAP(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         assert all(key in args for key in ['num_items', 'item_hidden_dim']), f"Missing keys in args: {args.keys()}"
