@@ -14,8 +14,8 @@ if __name__ == "__main__":
     seed_anything(seed=args['seed'])
     initLogging(args['log_dir'] / "main.log")
 
-    records = f"{args['method']}_{args['dataset']}_{args['timestamp']}"
-    wandb.init(project=args['project'], name=records, mode='online')
+    records = f"{args['method']}_{args['timestamp']}"
+    wandb.init(project=f"Personalized item embedding in [{args['dataset']}]", name=records, mode='online')
 
     ray.init(num_gpus = min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
 

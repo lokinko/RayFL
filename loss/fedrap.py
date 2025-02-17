@@ -1,6 +1,6 @@
 import torch
 
-class PersonalBCELoss(torch.nn.Module):
+class FedRAPLoss(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -30,5 +30,4 @@ class PersonalBCELoss(torch.nn.Module):
                - self.args['lambda'] * self.independency(item_personality, item_commonality) \
                + self.args['mu'] * third
 
-        # loss = self.crit(ratings_pred, ratings)
         return loss
