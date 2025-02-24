@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 
-METHOD = ['fedrap', 'pfedrec', 'fedpor', 'fedporplus']
+METHOD = ['fedrap', 'pfedrec', 'fedpor', 'fedpora']
 DATASET = ['movielens-100k', 'movielens-1m', 'amazon', 'last.fm', 'tenrec']
 
 work_dir = Path(__file__).resolve().parents[1]
@@ -53,8 +53,8 @@ def get_args():
     if not args['log_dir'].exists():
         args['log_dir'].mkdir(parents=True, exist_ok=True)
 
-    if unknown_args is None:
+    if unknown_args is not None:
+        args['unknown'] = {}
         for k, v in zip(unknown_args[::2], unknown_args[1::2]):
             args['unknown'][k[2:]] = v
-
     return args

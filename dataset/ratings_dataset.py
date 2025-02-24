@@ -34,14 +34,25 @@ class UserItemRatingsDataset:
             ratings = pd.read_csv(
                 data_file, sep="\t", header=1, usecols=[0, 1, 2], names=['uid', 'mid', 'rating'], engine='python')
 
+            # take the item orders instead of real timestamp
+            rank = ratings[['mid']].drop_duplicates().reindex()
+            rank['timestamp'] = np.arange((len(rank)))
+            ratings = pd.merge(ratings, rank, on=['mid'], how='left')
+
         elif self.args['dataset'] == 'tenrec':
-            chunks = pd.read_csv(data_file, sep=",", header=1, usecols=[0, 1, 2], names=['uid', 'mid', 'rating'], engine='python', chunksize=1000000)
+            chunks = pd.read_csv(data_file, sep=",", header=1, usecols=[0, 1, 2],
+                                names=['uid', 'mid', 'rating'], engine='python', chunksize=1000000)
 
             all_chunks = []
             for chunk in chunks:
                 all_chunks.append(chunk)
 
             ratings = pd.concat(all_chunks)
+
+            # take the item orders instead of real timestamp
+            rank = ratings[['mid']].drop_duplicates().reindex()
+            rank['timestamp'] = np.arange((len(rank)))
+            ratings = pd.merge(ratings, rank, on=['mid'], how='left')
 
         else:
             raise ValueError(f"Invalid dataset: {self.args['dataset']}")
@@ -58,7 +69,8 @@ class UserItemRatingsDataset:
         self.item_pool = set(self.ratings['itemId'].unique())
 
         self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings)
-        self.negatives = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        self.train_negatives = self.samples_negative_candidates(self.train_ratings, self.args['negatives_candidates'])
+        self.test_negatives = self.samples_negative_candidates(self.test_ratings, self.args['negatives_candidates'])
         return len(self.user_pool), len(self.item_pool)
 
     def samples_negative_candidates(self, ratings, negatives_candidates: int):
@@ -69,11 +81,11 @@ class UserItemRatingsDataset:
         interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(list(x), negatives_candidates))
         return interact_status[['userId', 'negative_items', 'negative_samples']]
 
-    def _split_loo(self, ratings):
+    def _split_loo(self, ratings, boardline=4):
         ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
-        test = ratings[ratings['rank_latest'] == 1]
-        val = ratings[ratings['rank_latest'] == 2]
-        train = ratings[ratings['rank_latest'] > 2]
+        test = ratings[ratings['rank_latest'] < boardline]
+        val = ratings[ratings['rank_latest'] == boardline]
+        train = ratings[ratings['rank_latest'] > boardline]
 
         assert train['userId'].nunique() == test['userId'].nunique() == val['userId'].nunique()
         assert len(train) + len(test) + len(val) == len(ratings)
@@ -81,34 +93,82 @@ class UserItemRatingsDataset:
         return train[['userId', 'itemId', 'rating']], val[['userId', 'itemId', 'rating']], test[
             ['userId', 'itemId', 'rating']]
 
+
     @measure_time()
     def sample_federated_train_data(self):
         grouped_ratings = self.train_ratings.groupby('userId')
         train = {}
         for user_id, user_ratings in grouped_ratings:
-            train[user_id] = negative_sample(
-                user_ratings, self.negatives[['userId', 'negative_items']], self.args['num_negatives'])
+            rating_df = pd.merge(user_ratings, self.train_negatives[['userId', 'negative_items']], on='userId')
+            users, items, ratings = [], [], []
+            for row in rating_df.itertuples():
+                users.append(int(row.userId))
+                items.append(int(row.itemId))
+                ratings.append(float(row.rating))
+
+                negative_samples = random.sample(list(row.negative_items), self.args['num_negatives'])
+
+                for _, neg_item in enumerate(negative_samples):
+                    users.append(int(row.userId))
+                    items.append(int(neg_item))
+                    ratings.append(float(0))
+
+            train[user_id] = (users, items, ratings)
         return train
+
 
     @measure_time()
     def sample_central_train_data(self):
-        train = negative_sample(
-            self.train_ratings, self.negatives[['userId', 'negative_items']], self.args['num_negatives'])
-        return train
+        rating_df = pd.merge(self.train_ratings, self.train_negatives[['userId', 'negative_items']], on='userId')
+        users, items, ratings = [], [], []
+        for row in rating_df.itertuples():
+            users.append(int(row.userId))
+            items.append(int(row.itemId))
+            ratings.append(float(row.rating))
+
+            negative_samples = random.sample(list(row.negative_items), self.args['num_negatives'])
+
+            for _, neg_item in enumerate(negative_samples):
+                users.append(int(row.userId))
+                items.append(int(neg_item))
+                ratings.append(float(0))
+        return (users, items, ratings)
+
+
+    @measure_time()
+    def sample_val_data(self):
+        rating_df = pd.merge(self.val_ratings, self.test_negatives[['userId', 'negative_samples']], on='userId')
+        users, items, ratings = [], [], []
+        for row in rating_df.itertuples():
+            users.append(int(row.userId))
+            items.append(int(row.itemId))
+            ratings.append(float(row.rating))
+
+            negative_samples = row.negative_samples
+
+            for _, neg_item in enumerate(negative_samples):
+                users.append(int(row.userId))
+                items.append(int(neg_item))
+                ratings.append(float(0))
+
+        val = group_seperate_items_by_ratings(users, items, ratings)
+        return val
+
 
     @measure_time()
     def sample_test_data(self):
-        val_users, val_items, val_ratings = negative_sample(
-            self.val_ratings, self.negatives[['userId', 'negative_samples']], self.args['negatives_candidates'], mode="test")
-        val = group_seperate_items_by_ratings(val_users, val_items, val_ratings)
+        rating_df = pd.merge(self.test_ratings, self.test_negatives[['userId', 'negative_samples']], on='userId')
+        users, items, ratings = [], [], []
+        for row in rating_df.itertuples():
+            users.append(int(row.userId))
+            items.append(int(row.itemId))
+            ratings.append(float(row.rating))
 
-        test_users, test_items, test_ratings = negative_sample(
-            self.test_ratings, self.negatives[['userId', 'negative_samples']], self.args['negatives_candidates'], mode="test")
-        test = group_seperate_items_by_ratings(test_users, test_items, test_ratings)
-        return val, test
+            negative_samples = row.negative_samples
 
-    def get_user_pool(self):
-        return self.user_pool
-
-    def get_item_pool(self):
-        return self.item_pool
+            for _, neg_item in enumerate(negative_samples):
+                users.append(int(row.userId))
+                items.append(int(neg_item))
+                ratings.append(float(0))
+        test = group_seperate_items_by_ratings(users, items, ratings)
+        return test

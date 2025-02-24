@@ -62,25 +62,32 @@ def run(args):
         server.global_model.load_state_dict(server_params)
 
         # test on validation and test data
-        val_hr, val_ndcg = server.test_on_round(server.val_data)
-        test_hr, test_ndcg = server.test_on_round(server.test_data)
-        logging.info(f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}")
-        wandb.log({'val_hr': val_hr, 'val_ndcg': val_ndcg, 'test_hr': test_hr, 'test_ndcg': test_ndcg}, step=communication_round)
+        val_hr, val_ndcg, val_auc, val_gauc = server.test_on_round(server.val_data)
+        test_hr, test_ndcg, test_auc, test_gauc = server.test_on_round(server.test_data)
+        logging.info(
+            f"Val HR = {val_hr:.4f}, Val NDCG = {val_ndcg:.4f}, Val AUC = {val_auc:.4f}, Val GAUC = {val_gauc:.4f}"
+            f"Test HR = {test_hr:.4f}, Test NDCG = {test_ndcg:.4f}, Test AUC = {test_auc:.4f}, Test GAUC = {test_gauc:.4f}"
+        )
+        wandb.log({ 'val_hr': val_hr, 'val_ndcg': val_ndcg, 'val_auc': val_auc, 'val_gauc': val_gauc,
+                    'test_hr': test_hr, 'test_ndcg': test_ndcg, 'test_auc': test_auc, 'test_gauc': test_gauc},
+                    step=communication_round)
 
         # test commonality
-        com_hr, com_ndcg = server.test_commonality(server.test_data)
-        logging.info(f"Commonality HR = {com_hr:.4f}, Commonality NDCG = {com_ndcg:.4f}")
-        wandb.log({'com_hr': com_hr, 'com_ndcg': com_ndcg}, step=communication_round)
+        com_hr, com_ndcg, com_auc, com_gauc = server.test_commonality(server.test_data)
+        logging.info(   f"Commonality HR = {com_hr:.4f}, Commonality NDCG = {com_ndcg:.4f}"
+                        f"Commonality AUC = {com_auc:.4f}, Commonality GAUC = {com_gauc:.4f}")
+        wandb.log({'com_hr': com_hr, 'com_ndcg': com_ndcg,
+                   'com_auc': com_auc, 'com_gauc': com_gauc}, step=communication_round)
 
         common_figure = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(global_params['item_commonality.weight'][:, :]))
+        sns.heatmap(torch.abs(global_params['item_commonality.weight'][:, :]), vmax=0.5)
 
         client_id = 100
         client_personal_fig = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(server.user_context[client_id]['state_dict']['item_personality.weight'][:, :]))
+        sns.heatmap(torch.abs(server.user_context[client_id]['state_dict']['item_personality.weight'][:, :]), vmax=0.5)
 
         client_common_fig = plt.figure(figsize=(10, 10))
-        sns.heatmap(torch.abs(server.user_context[client_id]['state_dict']['item_commonality.weight'][:, :]))
+        sns.heatmap(torch.abs(server.user_context[client_id]['state_dict']['item_commonality.weight'][:, :]), vmax=0.5)
 
         wandb.log({
             'commonality.weight': wandb.Image(common_figure),

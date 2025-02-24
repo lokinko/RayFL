@@ -22,7 +22,8 @@ class FedRAPServer(BaseServer):
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
-        self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
+        self.val_data = ray.get(self.dataset.sample_val_data.remote())
+        self.test_data = ray.get(self.dataset.sample_test_data.remote())
         self.global_model = FedRAPMo(self.args)
 
         for user_id in range(int(self.args['num_users'])):
@@ -32,7 +33,7 @@ class FedRAPServer(BaseServer):
                 'loss': [],
             }
 
-        actor_cpus, actor_gpus = 0.5, self.args['num_gpus'] / float(self.args['num_workers'])
+        actor_cpus, actor_gpus = 0.2, self.args['num_gpus'] / float(self.args['num_workers'])
         self.ray_actor_list = [
             FedRAPActor.options(num_cpus=actor_cpus, num_gpus=actor_gpus).remote(self.args) for _ in range(self.args['num_workers'])]
         self.ray_actor_pool = ray.util.ActorPool(self.ray_actor_list)
@@ -139,8 +140,9 @@ class FedRAPServer(BaseServer):
                                  negative_scores.data.view(-1).tolist()]
 
         hr, ndcg = self.metrics.cal_hit_ratio(), self.metrics.cal_ndcg()
+        auc, gauc = self.metrics.cal_auc(), self.metrics.cal_gauc()
 
-        return hr, ndcg
+        return hr, ndcg, auc, gauc
 
     @torch.no_grad()
     def test_commonality(self, user_ratings: dict):
@@ -188,5 +190,6 @@ class FedRAPServer(BaseServer):
                                  negative_scores.data.view(-1).tolist()]
 
         hr, ndcg = self.metrics.cal_hit_ratio(), self.metrics.cal_ndcg()
+        auc, gauc = self.metrics.cal_auc(), self.metrics.cal_gauc()
 
-        return hr, ndcg
+        return hr, ndcg, auc, gauc

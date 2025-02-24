@@ -3,6 +3,8 @@ import traceback
 
 from abc import ABC, abstractmethod
 
+import wandb
+
 '''
 method specific arguments should be provieded with dict format.
 '''
@@ -10,6 +12,7 @@ method specific arguments should be provieded with dict format.
 class BaseServer(ABC):
     def __init__(self, args, special_args) -> None:
         self.args = self.merge_args(args, special_args)
+        wandb.config.update(self.args)
         self.train_data = None
         self.val_data = None
         self.test_data = None

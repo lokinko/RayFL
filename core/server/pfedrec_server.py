@@ -22,7 +22,8 @@ class PFedRecServer(BaseServer):
     def allocate_init_status(self):
         self.dataset = self.load_dataset()
         self.train_data = ray.get(self.dataset.sample_federated_train_data.remote())
-        self.val_data, self.test_data = ray.get(self.dataset.sample_test_data.remote())
+        self.val_data = ray.get(self.dataset.sample_val_data.remote())
+        self.test_data = ray.get(self.dataset.sample_test_data.remote())
         self.global_model = PFedRecMo(self.args)
 
         for user_id in range(int(self.args['num_users'])):
@@ -112,8 +113,8 @@ class PFedRecServer(BaseServer):
 
             user_model.eval()
 
-            test_score = user_model(user_data['positive_items'])
-            negative_score = user_model(user_data['negative_items'])
+            test_score, _, _ = user_model(user_data['positive_items'])
+            negative_score, _, _ = user_model(user_data['negative_items'])
 
             if test_scores is None:
                 test_scores = test_score
@@ -138,8 +139,9 @@ class PFedRecServer(BaseServer):
                                  negative_scores.data.view(-1).tolist()]
 
         hr, ndcg = self.metrics.cal_hit_ratio(), self.metrics.cal_ndcg()
+        auc, gauc = self.metrics.cal_auc(), self.metrics.cal_gauc()
 
-        return hr, ndcg
+        return hr, ndcg, auc, gauc
 
     @torch.no_grad()
     def test_commonality(self, user_ratings: dict):
@@ -187,5 +189,6 @@ class PFedRecServer(BaseServer):
                                  negative_scores.data.view(-1).tolist()]
 
         hr, ndcg = self.metrics.cal_hit_ratio(), self.metrics.cal_ndcg()
+        auc, gauc = self.metrics.cal_auc(), self.metrics.cal_gauc()
 
-        return hr, ndcg
+        return hr, ndcg, auc, gauc
