@@ -1,4 +1,7 @@
+import logging
 import importlib
+import traceback
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -15,11 +18,14 @@ if __name__ == "__main__":
     initLogging(args['log_dir'] / "main.log")
 
     records = f"{args['method']}_{args['timestamp']}"
-    wandb.init(project=f"Personalized item embedding in [{args['dataset']}]", name=records, mode='online')
+    wandb.init(project=f"Record in [{args['dataset']}]", name=records, mode='online')
 
     ray.init(num_gpus = min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
 
-    algorithm = importlib.import_module(f"core.algorithm.{args['method']}")
-    algorithm.run(args)
-
-    wandb.finish()
+    try:
+        algorithm = importlib.import_module(f"core.algorithm.{args['method']}")
+        algorithm.run(args)
+    except Exception:
+        logging.error(f"Run algorithm {args['method']} failed, {traceback.format_exc()}")
+    finally:
+        wandb.finish()
