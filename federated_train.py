@@ -18,7 +18,7 @@ if __name__ == "__main__":
     initLogging(args['log_dir'] / "main.log")
 
     records = f"{args['method']}_{args['timestamp']}"
-    wandb.init(project=f"Record in [{args['dataset']}]", name=records, mode='online')
+    wandb.init(project=f"Dataset = [{args['dataset']}]", name=records, mode='online')
 
     ray.init(num_gpus = min(args['num_gpus'], torch.cuda.device_count()), ignore_reinit_error=True)
 

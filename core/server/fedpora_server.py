@@ -66,15 +66,15 @@ class FedPORAServer(BaseServer):
 
         samples, global_weights = 0, {}
 
-        iter_participants = tqdm(participants, ncols=120)
-        for user in iter_participants:
+        # iter_participants = tqdm(participants, ncols=120)
+        for user in participants:
             for key in keys:
                 if key not in global_weights:
                     global_weights[key] = torch.zeros_like(self.global_model.state_dict()[key])
 
                 global_weights[key] += self.user_context[user]['state_dict'][key]
             samples += 1
-            iter_participants.set_description(f"Aggregating {samples} participants")
+            # iter_participants.set_description(f"Aggregating {samples} participants")
 
         global_weights = {k: v / samples for k, v in global_weights.items()}
         return global_weights
@@ -85,12 +85,12 @@ class FedPORAServer(BaseServer):
             lambda a, v: a.train.remote(copy.deepcopy(self.global_model), v), \
             [(self.user_context[user_id], self.train_data[user_id]) for user_id in participants])
 
-        results = tqdm(results, total=len(participants), ncols=120)
+        # results = tqdm(results, total=len(participants), ncols=120)
         for result in results:
             user_id, client_model, client_loss = result
             self.user_context[user_id]['state_dict'] = copy.deepcopy(client_model.state_dict())
             self.user_context[user_id]['loss'] = client_loss
-            results.set_description(f"Training loss: {client_loss[-1]:.4f}")
+            # results.set_description(f"Training loss: {client_loss[-1]:.4f}")
 
 
     @torch.no_grad()
@@ -99,10 +99,10 @@ class FedPORAServer(BaseServer):
         negative_scores = None
         test_users, test_items, negative_users, negative_items = None, None, None, None
 
-        iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
-        for user, user_data in iter_user_ratings:
+        # iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
+        for user, user_data in user_ratings.items():
             # load each user's mlp parameters.
-            iter_user_ratings.set_description(f"Testing user {user}")
+            # iter_user_ratings.set_description(f"Testing user {user}")
             user_model = copy.deepcopy(self.global_model)
 
             user_param_dict = self.user_context[user]['state_dict']
@@ -149,9 +149,9 @@ class FedPORAServer(BaseServer):
         test_users, test_items, negative_users, negative_items = None, None, None, None
         item_commonality = copy.deepcopy(self.global_model.item_commonality)
 
-        iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
-        for user, user_data in iter_user_ratings:
-            iter_user_ratings.set_description(f"Commonality testing user {user}")
+        # iter_user_ratings = tqdm(user_ratings.items(), ncols=120)
+        for user, user_data in user_ratings.items():
+            # iter_user_ratings.set_description(f"Commonality testing user {user}")
 
             # load each user's mlp parameters.
             user_model = copy.deepcopy(self.global_model)

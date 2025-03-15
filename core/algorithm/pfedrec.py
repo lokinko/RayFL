@@ -13,6 +13,7 @@ PFEDREC_ARGS = {
     'num_negatives': 4,
     'item_hidden_dim': 32,
     'negatives_candidates': 99,
+    'boardline': 2,
 
     'top_k': 10,
     'tol': 0.0001,

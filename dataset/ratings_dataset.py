@@ -68,9 +68,11 @@ class UserItemRatingsDataset:
         self.user_pool = set(self.ratings['userId'].unique())
         self.item_pool = set(self.ratings['itemId'].unique())
 
-        self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings)
+        self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(preprocess_ratings, self.args['boardline'])
+
         self.train_negatives = self.samples_negative_candidates(self.train_ratings, self.args['negatives_candidates'])
-        self.test_negatives = self.samples_negative_candidates(self.test_ratings, self.args['negatives_candidates'])
+        # self.train_negatives = self.samples_negative_candidates(self.ratings, self.args['negatives_candidates'])
+        self.test_negatives = self.samples_negative_candidates(self.train_ratings, self.args['negatives_candidates'])
         return len(self.user_pool), len(self.item_pool)
 
     def samples_negative_candidates(self, ratings, negatives_candidates: int):
@@ -81,7 +83,7 @@ class UserItemRatingsDataset:
         interact_status['negative_samples'] = interact_status['negative_items'].apply(lambda x: random.sample(list(x), negatives_candidates))
         return interact_status[['userId', 'negative_items', 'negative_samples']]
 
-    def _split_loo(self, ratings, boardline=4):
+    def _split_loo(self, ratings, boardline=2):
         ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
         test = ratings[ratings['rank_latest'] < boardline]
         val = ratings[ratings['rank_latest'] == boardline]
